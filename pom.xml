@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.hatsukoi.eshopblvd</groupId>
+    <artifactId>eshopblvd</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>eshopblvd</name>
+    <description>电商系统</description>
+    <packaging>pom</packaging>
+
+<!--    聚合所有的微服务-->
+<!--    聚合服务一执行maven lifecycle操作，管理的微服务也会继承操作-->
+    <modules>
+        <module>eshopblvd-coupon</module>
+        <module>eshopblvd-member</module>
+        <module>eshopblvd-order</module>
+        <module>eshopblvd-product</module>
+        <module>eshopblvd-ware</module>
+    </modules>
+</project>
