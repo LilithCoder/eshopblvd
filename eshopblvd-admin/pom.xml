@@ -9,10 +9,10 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.hatsukoi.eshopblvd</groupId>
-    <artifactId>eshopblvd-product</artifactId>
+    <artifactId>eshopblvd-admin</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>eshopblvd-product</name>
-    <description>商品服务</description>
+    <name>eshopblvd-admin</name>
+    <description>后台管理系统</description>
     <properties>
         <java.version>1.8</java.version>
     </properties>
@@ -21,34 +21,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
-        </dependency>
-        <!-- MyBatis-->
-        <dependency>
-            <groupId>org.mybatis</groupId>
-            <artifactId>mybatis</artifactId>
-            <version>3.5.5</version>
-        </dependency>
-        <!--MyBatis分页插件-->
-        <dependency>
-            <groupId>com.github.pagehelper</groupId>
-            <artifactId>pagehelper-spring-boot-starter</artifactId>
-            <version>1.3.0</version>
-        </dependency>
-        <!--集成druid连接池-->
-        <dependency>
-            <groupId>com.alibaba</groupId>
-            <artifactId>druid-spring-boot-starter</artifactId>
-            <version>1.1.23</version>
-        </dependency>
-        <!--Mysql数据库驱动-->
-        <dependency>
-            <groupId>mysql</groupId>
-            <artifactId>mysql-connector-java</artifactId>
-            <version>8.0.17</version>
         </dependency>
     </dependencies>
 

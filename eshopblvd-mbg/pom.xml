@@ -2,25 +2,32 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.6.4</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
     <groupId>com.hatsukoi.eshopblvd</groupId>
-    <artifactId>eshopblvd</artifactId>
+    <artifactId>eshopblvd-mbg</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>eshopblvd</name>
-    <description>电商系统</description>
-    <packaging>pom</packaging>
-
-    <!-- 聚合所有的微服务-->
-    <!-- 聚合服务一执行maven lifecycle操作，管理的微服务也会继承操作-->
-    <modules>
-        <module>eshopblvd-coupon</module>
-        <module>eshopblvd-member</module>
-        <module>eshopblvd-order</module>
-        <module>eshopblvd-product</module>
-        <module>eshopblvd-ware</module>
-        <module>eshopblvd-admin</module>
-        <module>eshopblvd-mbg</module>
-    </modules>
+    <name>eshopblvd-mbg</name>
+    <description>mybatis代码生成器</description>
+    <properties>
+        <java.version>1.8</java.version>
+    </properties>
     <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <!-- MyBatis-->
         <dependency>
             <groupId>org.mybatis</groupId>
@@ -51,6 +58,15 @@
             <artifactId>mysql-connector-java</artifactId>
             <version>8.0.17</version>
         </dependency>
-
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
 </project>
