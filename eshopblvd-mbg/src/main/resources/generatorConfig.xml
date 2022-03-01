@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE generatorConfiguration
+        PUBLIC "-//mybatis.org//DTD MyBatis Generator Configuration 1.0//EN"
+        "http://mybatis.org/dtd/mybatis-generator-config_1_0.dtd">
+
+<!-- 配置生成器 -->
+<generatorConfiguration>
+    <properties resource="generator.properties"/>
+    <!-- 配置对象环境 -->
+    <context id="MySqlContext" targetRuntime="MyBatis3" defaultModelType="flat">
+        <!-- 配置起始与结束标识符 -->
+        <property name="beginningDemiliter" value="`"/>
+        <property name="endingDemiliter" value="`"/>
+        <property name="javaFileEncoding" value="UTF-8"/>
+
+        <!-- 为模型生成序列化方法-->
+        <plugin type="org.mybatis.generator.plugins.SerializablePlugin"/>
+        <!-- 为生成的Java模型创建一个toString方法 -->
+        <plugin type="org.mybatis.generator.plugins.ToStringPlugin"/>
+        <!-- 配置注释生成器 -->
+        <commentGenerator>
+            <property name="suppressDate" value="true"/>
+            <property name="addRemarkComments" value="true"/>
+        </commentGenerator>
+        <!--配置数据库连接-->
+        <jdbcConnection driverClass="${jdbc.driverClass}"
+                        connectionURL="${jdbc.connectionURL}"
+                        userId="${jdbc.userId}"
+                        password="${jdbc.password}">
+            <!--解决mysql驱动升级到8.0后不生成指定数据库代码的问题-->
+            <property name="nullCatalogMeansCurrent" value="true" />
+        </jdbcConnection>
+        <!--指定生成model的路径 自动生成的 POJO置于哪个包下-->
+        <javaModelGenerator targetPackage="com.hatsukoi.eshopblvd.${serviceName}.entity" targetProject="eshopblvd-mbg/src/main/java"/>
+        <!--指定生成mapper.xml的路径 自动生成的 mapper.xml置于哪个包下-->
+        <sqlMapGenerator targetPackage="com.hatsukoi.eshopblvd.${serviceName}.mapper" targetProject="eshopblvd-mbg/src/main/resources"/>
+        <!--指定生成mapper接口的的路径 指定自动生成的 DAO接口置于哪个包下-->
+        <javaClientGenerator targetPackage="com.hatsukoi.eshopblvd.${serviceName}.dao"
+                             targetProject="eshopblvd-mbg/src/main/java"
+                             type="XMLMAPPER"/>
+        <!-- 配置数据库表，生成全部表tableName设为% 指定数据表名-->
+        <table tableName="%">
+            <generatedKey column="id" sqlStatement="Mysql"/>
+            <domainObjectRenamingRule searchString="^${databaseName}" replaceString=""/>
+        </table>
+    </context>
+</generatorConfiguration>
