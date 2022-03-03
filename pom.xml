@@ -12,6 +12,7 @@
     <!-- 聚合所有的微服务-->
     <!-- 聚合服务一执行maven lifecycle操作，管理的微服务也会继承操作-->
     <modules>
+        <module>eshopblvd-common</module>
         <module>eshopblvd-coupon</module>
         <module>eshopblvd-member</module>
         <module>eshopblvd-order</module>
