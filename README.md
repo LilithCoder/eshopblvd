@@ -291,7 +291,14 @@ MyBatis Generator可以通过配置生成基本的crud代码，包含了数据�
        </dependencies>
    ```
    
-   3. 运行Mybatis Generator
+   3. generator.properties里配置下接下来需要生成逆向工程的微服务信息
+      
+      ```json
+      serviceName=product 微服务名称
+      databaseName=Pms 数据库前缀
+      ```
+      
+      并运行Mybatis Generator
    
    ```java
    /**
@@ -376,3 +383,39 @@ List<PmsBrand> brandList = brandMapper.selectByExample(new PmsBrandExample());
 //当前导航分页的个数，navigatePages，举例：3 4 「5」 6 7
 PageInfo<PmsBrand> pageInfo = new PageInfo<PmsBrand>(brandList, 5);
 ```
+
+## mybatis开发环境配置
+
+TODO: 整合mybatis、page-helper，分页工具类、查询，common库里所有的工具类
+
+【面试】mybatis的优缺点？
+
+## 创建公共库eshopblvd-common
+
+放置公共的依赖、bean、工具类，每个微服务都来依赖公共库  
+
+lombok依赖: @Data标注的实体类在编译期间自动加上getter、setter方法
+
+#### Response 响应封装工具类
+
+继承hashmap，key分别有code, msg, data
+
+用来封装请求响应，功能包括快速构造500响应、200响应，响应内容的自定义
+
+亮点：获取响应的时候可以通过泛型、fastjson的typereference来反序列化得到特定自定义类型的对象数据，使用TypeReference可以明确的指定[反序列化](https://so.csdn.net/so/search?q=%E5%8F%8D%E5%BA%8F%E5%88%97%E5%8C%96&spm=1001.2101.3001.7020)的类型
+
+
+
+【面试】java泛型
+
+[Java 泛型 | 菜鸟教程](https://www.runoob.com/java/java-generics.html)
+
+【面试】Java泛型中T和问号（通配符）的区别
+
+[Java泛型中T和问号（通配符）的区别_ikownyou的博客-CSDN博客_泛型通配符?和泛型t区别](https://blog.csdn.net/ikownyou/article/details/65630385)
+
+【面试】java继承、重写override、重载overload
+
+[Java 继承 | 菜鸟教程](https://www.runoob.com/java/java-inheritance.html)
+
+[Java 重写(Override)与重载(Overload) | 菜鸟教程](https://www.runoob.com/java/java-override-overload.html)
