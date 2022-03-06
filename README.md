@@ -189,6 +189,186 @@ $ npm run dev[![@weilingao](https://avatars.githubusercontent.com/u/43017798?s=4
 
 vue脚手架初始化工程，结合vue-router,element-ui，完成基础的侧菜单和展示内容的路由
 
+## 创建公共库eshopblvd-common
+
+放置公共的依赖、bean、工具类，每个微服务都来依赖公共库  
+
+lombok依赖: @Data标注的实体类在编译期间自动加上getter、setter方法
+
+#### Response 响应封装工具类
+
+继承hashmap，key分别有code, msg, data
+
+用来封装请求响应，功能包括快速构造500响应、200响应，响应内容的自定义
+
+亮点：获取响应的时候可以通过泛型、fastjson的typereference来反序列化得到特定自定义类型的对象数据，使用TypeReference可以明确的指定[反序列化](https://so.csdn.net/so/search?q=%E5%8F%8D%E5%BA%8F%E5%88%97%E5%8C%96&spm=1001.2101.3001.7020)的类型
+
+【面试】java泛型
+
+[Java 泛型 | 菜鸟教程](https://www.runoob.com/java/java-generics.html)
+
+【面试】Java泛型中T和问号（通配符）的区别
+
+[Java泛型中T和问号（通配符）的区别_ikownyou的博客-CSDN博客_泛型通配符?和泛型t区别](https://blog.csdn.net/ikownyou/article/details/65630385)
+
+【面试】java继承、重写override、重载overload
+
+[Java 继承 | 菜鸟教程](https://www.runoob.com/java/java-inheritance.html)
+
+[Java 重写(Override)与重载(Overload) | 菜鸟教程](https://www.runoob.com/java/java-override-overload.html)
+
+## mybatis开发环境配置
+
+TODO: 整合mybatis、page-helper实现分页功能[Mybatis 数据库物理分页插件 PageHelper - digdeep - 博客园](https://www.cnblogs.com/digdeep/p/4608933.html)，分页工具类、查询，common库里所有的工具类
+
+- 引入mybatis相关依赖：mybatis、数据库驱动  
+
+```xml
+<!-- MyBatis-->
+<dependency>
+    <groupId>org.mybatis</groupId>
+    <artifactId>mybatis</artifactId>
+    <version>3.5.7</version>
+</dependency>
+<!--Mysql数据库驱动-->
+<dependency>
+    <groupId>mysql</groupId>
+    <artifactId>mysql-connector-java</artifactId>
+    <version>8.0.17</version>
+</dependency>
+<!-- https://mvnrepository.com/artifact/junit/junit -->
+<dependency>
+    <groupId>junit</groupId>
+    <artifactId>junit</artifactId>
+    <version>4.12</version>
+    <scope>test</scope>
+</dependency>
+```
+
+- mybatis - springboot整合
+
+springboot作为ioc容器管理所有的组件，解决组件的动态依赖注入，控制事务
+
+整合的目的是service业务逻辑层利用autowired自动装配dao层的组件来增删改查
+
+官方docs：[GitHub - mybatis/spring-boot-starter: MyBatis integration with Spring Boot](https://github.com/mybatis/spring-boot-starter)
+
+[SpringBoot整合MyBatis实战 | 包包的Tech Pool](https://www.baobao555.tech/posts/628531b3/)
+
+引入springboot整合mybatis适配包(场景启动器)
+
+```xml
+<dependency>
+    <groupId>org.mybatis.spring.boot</groupId>
+    <artifactId>mybatis-spring-boot-starter</artifactId>
+    <version>2.2.2</version>
+</dependency>
+```
+
+- 配置
+
+在application.yml配置数据源
+
+```yml
+spring:
+  datasource:
+    username: root
+    password: root
+    url: jdbc:mysql://47.103.8.41:3306/eshopblvd_pms
+    driver-class-name: com.mysql.cj.jdbc.Driver
+```
+
+mybatis配置
+
+@MapperScan注解告诉mapper接口的位置`
+
+`@MapperScan("com.hatsukoi.eshopblvd.product.dao")`
+
+配置xml映射文件位置
+
+```yml
+mybatis:
+  mapper-locations: classpath*:**/mapper/*.xml
+```
+
+- 接下俩就是实现service业务层、controller了
+
+
+
+【面试】mybatis的优缺点？
+
+【面试】# MyBatis 中#{}和${}区别
+
+[MyBatis 中#{}和${}区别_w3cschool](https://www.w3cschool.cn/mybatis/mybatis-yta93bpj.html)
+
+【面试】 @Mapper 与 @MapperScan 的区别
+
+[@Mapper 与 @MapperScan 的区别_那年那些事儿-CSDN博客_mapper和mapperscan](https://blog.csdn.net/xiaojin21cen/article/details/103273172)
+
+参考wiki：
+
+[SpringBoot | 3.2 &#x6574;&#x5408;MyBatis](https://www.wcqblog.com/article/detail/212298947711074304)
+
+[SpringBoot整合MyBatis实战 | 包包的Tech Pool](https://www.baobao555.tech/posts/628531b3/)
+
+https://github.com/mybatis/spring-boot-starter/wiki/Quick-Start
+
+[# Spring Boot入门系列（十一）如何整合Mybatis](https://mp.weixin.qq.com/s?__biz=MzAxMTY5NDAwOA==&mid=2651415559&idx=1&sn=8b8f6aeaaee93923fd0fd6f90fa8ac74&chksm=8040fed0b73777c62886f7d932fbac447b6f7b482cffd650fcacc93f9ae03e451a55d8a32554&scene=21#wechat_redirect)
+
+## mybatis分页插件
+
+官方docs：
+
+[Mybatis-PageHelper/README_zh.md at master · pagehelper/Mybatis-PageHelper · GitHub](https://github.com/pagehelper/Mybatis-PageHelper/blob/master/README_zh.md)
+
+[GitHub - pagehelper/pagehelper-spring-boot: pagehelper-spring-boot](https://github.com/pagehelper/pagehelper-spring-boot)
+
+- 引入依赖
+
+```xml
+<!-- pagehelper -->
+<dependency>    
+    <groupId>com.github.pagehelper</groupId>    
+    <artifactId>pagehelper-spring-boot-starter</artifactId>
+    <version>1.3.0</version>
+</dependency>
+```
+
+- 使用分页功能
+
+```java
+//在查询之前开启分页，加了这个之后pagehelper 插件就会通过其内部的拦截器，将执行的sql语句，转化为分页的sql语句
+PageHelper.startPage(pageNum, pageSize);pageNum页码、pageSize每页多少条
+
+//之后进行查询操作将自动进行分页
+List<PmsBrand> brandList = brandMapper.selectByExample(new PmsBrandExample());
+
+//通过构造PageInfo对象获取分页信息，如当前页码，总页数，总条数
+//当前导航分页的个数，navigatePages，举例：3 4 「5」 6 7
+PageInfo<PmsBrand> pageInfo = new PageInfo<PmsBrand>(brandList, 5);
+```
+
+common基础库添加通用分页数据封装类utils.CommonPageInfo，将pagehelper分页查询结果封装为通用分页封装结果
+
+使用例子：
+
+```java
+public CommonPage<PmsProduct> productList(Long brandId, Integer pageNum, Integer pageSize) {
+    PageHelper.startPage(pageNum,pageSize);
+    PmsProductExample example = new PmsProductExample();
+    example.createCriteria().andDeleteStatusEqualTo(0)
+                .andBrandIdEqualTo(brandId);
+    List<PmsProduct> productList = productMapper.selectByExample(example);
+    return CommonPageInfo.convertToCommonPage(productList);
+}
+```
+
+
+
+参考wiki：
+
+[Spring Boot入门系列（十六）整合pagehelper，一秒实现分页功能！ - 云+社区 - 腾讯云](https://cloud.tencent.com/developer/article/1669256)
+
 ## mybatis代码生成器
 
 MyBatis Generator可以通过配置生成基本的crud代码，包含了数据库表对应的实体类，Mapper接口类，XML映射文件和Example对象等
@@ -344,10 +524,6 @@ MyBatis Generator可以通过配置生成基本的crud代码，包含了数据�
 3. 生成文件有数据库名字前缀，想要删除
    
    在配置文件中加上`<domainObjectRenamingRule searchString="^${databaseName}" replaceString=""/>`
-   
-   
-
-
 
 参考文档：
 
@@ -359,63 +535,46 @@ https://segmentfault.com/a/1190000038622464
 
 [Example类使用说明 · Java 开源项目中文文档 · 看云](https://www.kancloud.cn/wizardforcel/java-opensource-doc/153016)
 
-## mybatis分页插件
+[Mybatis——Example用法 - 简书](https://www.jianshu.com/p/335960d6db6a)
 
-引入依赖
-
-```xml
-<dependency>
-    <groupId>com.github.pagehelper</groupId>
-    <artifactId>pagehelper</artifactId>
-</dependency>
-```
-
-使用分页功能
+## 验证环境是否搭建成功
 
 ```java
-//在查询之前开启分页
-PageHelper.startPage(pageNum, pageSize);
+@Service
+public class BrandServiceImpl implements BrandService {
+    @Autowired
+    private BrandMapper brandMapper;
 
-//之后进行查询操作将自动进行分页
-List<PmsBrand> brandList = brandMapper.selectByExample(new PmsBrandExample());
+    @Override
+    public Brand selectBrandById(long brandId) {
+        return brandMapper.selectByPrimaryKey(brandId);
+    }
 
-//通过构造PageInfo对象获取分页信息，如当前页码，总页数，总条数
-//当前导航分页的个数，navigatePages，举例：3 4 「5」 6 7
-PageInfo<PmsBrand> pageInfo = new PageInfo<PmsBrand>(brandList, 5);
+    @Override
+    public CommonPageInfo<Brand> queryBrandsByShowStatus(int pageNum, int pageSize, byte showStatus) {
+        PageHelper.startPage(pageNum, pageSize);
+        BrandExample brandExample = new BrandExample();
+        brandExample.createCriteria().andShowStatusEqualTo(showStatus);
+        List<Brand> brandList = brandMapper.selectByExample(brandExample);
+        return CommonPageInfo.convertToCommonPage(brandList);
+    }
+}
 ```
 
-## mybatis开发环境配置
+```java
+@SpringBootTest
+class EshopblvdProductApplicationTests {
+    @Autowired
+    BrandService brandService;
 
-TODO: 整合mybatis、page-helper，分页工具类、查询，common库里所有的工具类
+    @Test
+    void contextLoads() {
+        Brand brand = brandService.selectBrandById(1L);
+        System.out.println("获取到的品牌是：" + brand);
+        CommonPageInfo<Brand> brandCommonPageInfo = brandService.queryBrandsByShowStatus(2, 2, (byte) 1);
+        System.out.println("目前能显示的第" + brandCommonPageInfo.getCurrPage() + "页的品牌是：" + brandCommonPageInfo.getListData());
+    }
+}
+```
 
-【面试】mybatis的优缺点？
-
-## 创建公共库eshopblvd-common
-
-放置公共的依赖、bean、工具类，每个微服务都来依赖公共库  
-
-lombok依赖: @Data标注的实体类在编译期间自动加上getter、setter方法
-
-#### Response 响应封装工具类
-
-继承hashmap，key分别有code, msg, data
-
-用来封装请求响应，功能包括快速构造500响应、200响应，响应内容的自定义
-
-亮点：获取响应的时候可以通过泛型、fastjson的typereference来反序列化得到特定自定义类型的对象数据，使用TypeReference可以明确的指定[反序列化](https://so.csdn.net/so/search?q=%E5%8F%8D%E5%BA%8F%E5%88%97%E5%8C%96&spm=1001.2101.3001.7020)的类型
-
-
-
-【面试】java泛型
-
-[Java 泛型 | 菜鸟教程](https://www.runoob.com/java/java-generics.html)
-
-【面试】Java泛型中T和问号（通配符）的区别
-
-[Java泛型中T和问号（通配符）的区别_ikownyou的博客-CSDN博客_泛型通配符?和泛型t区别](https://blog.csdn.net/ikownyou/article/details/65630385)
-
-【面试】java继承、重写override、重载overload
-
-[Java 继承 | 菜鸟教程](https://www.runoob.com/java/java-inheritance.html)
-
-[Java 重写(Override)与重载(Overload) | 菜鸟教程](https://www.runoob.com/java/java-override-overload.html)
+运行成功～！输出结果符合预期

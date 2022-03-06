@@ -1,8 +1,9 @@
 /*
 SQLyog Ultimate v11.25 (64 bit)
-MySQL - 5.7.27 : Database - gulimall_wms
+MySQL - 5.7.27 : Database - eshopblvd_wms
 *********************************************************************
-*/
+*/
+
 
 /*!40101 SET NAMES utf8 */;
 
@@ -12,9 +13,9 @@ MySQL - 5.7.27 : Database - gulimall_wms
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
-CREATE DATABASE /*!32312 IF NOT EXISTS*/`gulimall_wms` /*!40100 DEFAULT CHARACTER SET utf8mb4 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/`eshopblvd_wms` /*!40100 DEFAULT CHARACTER SET utf8mb4 */;
 
-USE `gulimall_wms`;
+USE `eshopblvd_wms`;
 
 /*Table structure for table `undo_log` */
 
