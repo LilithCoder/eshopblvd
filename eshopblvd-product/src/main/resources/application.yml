@@ -7,3 +7,6 @@ spring:
 
 mybatis:
   mapper-locations: classpath*:com/hatsukoi/eshopblvd/product/mapper/*.xml
+
+server:
+  port: 10000

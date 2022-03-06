@@ -6,4 +6,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 mybatis:
-  mapper-locations: classpath*:com/hatsukoi/eshopblvd/product/member/*.xml
+  mapper-locations: classpath*:com/hatsukoi/eshopblvd/member/mapper/*.xml
+
+server:
+  port: 8000
