@@ -348,7 +348,7 @@ List<PmsBrand> brandList = brandMapper.selectByExample(new PmsBrandExample());
 PageInfo<PmsBrand> pageInfo = new PageInfo<PmsBrand>(brandList, 5);
 ```
 
-common基础库添加通用分页数据封装类utils.commonPageInfo，将pagehelper分页查询结果封装为通用分页封装结果
+common基础库添加通用分页数据封装类utils.CommonPageInfo，将pagehelper分页查询结果封装为通用分页封装结果
 
 使用例子：
 
