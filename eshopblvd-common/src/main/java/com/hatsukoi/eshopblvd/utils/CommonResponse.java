@@ -12,13 +12,13 @@ import java.util.HashMap;
  *
  * @author gaoweilin
  */
-public class Response extends HashMap<String, Object> {
+public class CommonResponse extends HashMap<String, Object> {
 
     public static final String RESPONSE_SUCCESS_MSG = "success";
     public static final String RESPONSE_ERROR_MSG = "error";
     public static final String RESPONSE_DATA_KEY = "data";
 
-    public Response(boolean isSuccess) {
+    public CommonResponse(boolean isSuccess) {
         if (isSuccess) {
             put("code", HttpStatus.SC_OK);
             put("msg", RESPONSE_SUCCESS_MSG);
@@ -28,22 +28,22 @@ public class Response extends HashMap<String, Object> {
         }
     }
 
-    public static Response success() {
-        return new Response(true);
+    public static CommonResponse success() {
+        return new CommonResponse(true);
     }
 
-    public static Response success(String msg) {
-        Response resp = new Response(true);
+    public static CommonResponse success(String msg) {
+        CommonResponse resp = new CommonResponse(true);
         resp.put("msg", msg);
         return resp;
     }
 
-    public static Response error() {
-        return new Response(false);
+    public static CommonResponse error() {
+        return new CommonResponse(false);
     }
 
-    public static Response error(String msg) {
-        Response resp = new Response(false);
+    public static CommonResponse error(String msg) {
+        CommonResponse resp = new CommonResponse(false);
         resp.put("msg", msg);
         return resp;
     }
