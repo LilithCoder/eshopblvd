@@ -72,6 +72,13 @@ $ docker ps -a
 
 重启某一docker容器
 $ docker restart xxx
+
+停止/删除某一docker容器/镜像
+$ docker stop ${CONTAINER_ID}
+$ docker rm ${CONTAINER_ID}
+$ docker image rm 
+
+
 ```
 
 配置docker阿里云镜像加速
@@ -578,3 +585,128 @@ class EshopblvdProductApplicationTests {
 ```
 
 运行成功～！输出结果符合预期
+
+## 分布式系统环境搭建
+
+[Spring Cloud Alibaba](https://spring.io/projects/spring-cloud-alibaba)
+
+[spring-cloud-alibaba/README-zh.md at 2.2.x · alibaba/spring-cloud-alibaba · GitHub](https://github.com/alibaba/spring-cloud-alibaba/blob/2.2.x/README-zh.md)
+
+SpringCloud Alibaba - Nacos：服务发现/注册、配置中心
+
+~~SpringCloud - Ribbon：负载均衡~~
+
+SpringCloud - Gateway：API网关
+
+Apache Dubbo: RPC框架
+
+SpringAlibaba - Sentinel: 服务容错（限流、降级、熔断）
+
+SpringCloud - Sleuth:调用链监控
+
+SpringCloud Alibaba - Seata：分布式事务解决方案
+
+接下来就是将各个依赖引入common基础库中
+
+引入依赖前，先看springcloud-alibaba中组件的版本兼容关系：随便选版本很容易启动项目时候报错
+
+[版本说明 · alibaba/spring-cloud-alibaba Wiki · GitHub](https://github.com/alibaba/spring-cloud-alibaba/wiki/%E7%89%88%E6%9C%AC%E8%AF%B4%E6%98%8E)
+
+#### SpringCloud-alibaba依赖引入
+
+```xml
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+            <version>2.2.7.RELEASE</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+```
+
+#### SpringCloud Alibaba-Nacos
+
+接入注册中心，引入 Nacos Discovery Starter
+
+```xml
+ <dependency>
+     <groupId>com.alibaba.cloud</groupId>
+     <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+ </dependency>
+```
+
+1. 本地启动nacos-server，下载2.0.2[Releases · alibaba/nacos · GitHub](https://github.com/alibaba/nacos/releases)
+
+直接运行nacos/bin/startup.sh，完事儿～
+
+2. 通过docker启动nacos-server，来到我们的centos，先拉取docker镜像
+
+https://hub.docker.com/r/nacos/nacos-server
+
+```shell
+无视这条
+$ docker pull nacos/nacos-server
+```
+
+快速启动docker容器
+
+```shell
+$ docker run --name nacos-server -e MODE=standalone -p 8848:8848 -p 9849:9849 -p 9848:9848 -d nacos/nacos-server:2.0.3
+$ docker update nacos-server --restart=always
+```
+
+- 注意⚠️：Nacos2.0版本相比1.X新增了gRPC的通信方式，因此需要增加2个端口。新增端口是在配置的主端口(server.port)基础上，进行一定偏移量自动生成。
+- 
+
+最后别忘了去安全组暴露下8848端口(主端口)，9848 9849
+
+现在可以通过`服务器地址:8848/nacos`访问注册中心啦，用户名/密码均为nacos
+
+需要注册的微服务下yml里配置：
+
+```yml
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 服务器地址:8848
+```
+
+使用 @EnableDiscoveryClient 注解开启服务注册与发现功能
+
+```java
+@SpringBootApplication
+ @EnableDiscoveryClient
+ public class ProviderApplication {
+
+ 	public static void main(String[] args) {
+ 		SpringApplication.run(ProviderApplication.class, args);
+ 	}
+
+ 	@RestController
+ 	class EchoController {
+ 		@GetMapping(value = "/echo/{string}")
+ 		public String echo(@PathVariable String string) {
+ 				return string;
+ 		}
+ 	}
+ }
+```
+
+为微服务起名，这样才能被注册
+
+```yml
+   application:
+    name: eshopblvd-product
+```
+
+服务一启动，就能在服务列表中看到我们的微服务了
+
+![](/Users/gaoweilin/Developer/eshopblvd/docs/assets/1.png)
+
+#### springboot整合dubbo
+
+[Dubbo3 简介 | Apache Dubbo](https://dubbo.apache.org/zh/docs/introduction/)
