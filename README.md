@@ -710,3 +710,109 @@ $ docker update nacos-server --restart=always
 #### springboot整合dubbo
 
 [Dubbo3 简介 | Apache Dubbo](https://dubbo.apache.org/zh/docs/introduction/)
+
+[Dubbo 融合 Nacos 成为注册中心](https://nacos.io/zh-cn/docs/use-nacos-with-dubbo.html)
+
+[Dubbo 外部化配置 - 小马哥的技术博客](https://mercyblitz.github.io/2018/01/18/Dubbo-%E5%A4%96%E9%83%A8%E5%8C%96%E9%85%8D%E7%BD%AE/)
+
+[版本说明 · alibaba/spring-cloud-alibaba Wiki · GitHub](https://github.com/alibaba/spring-cloud-alibaba/wiki/%E7%89%88%E6%9C%AC%E8%AF%B4%E6%98%8E)
+
+[注解配置 | Apache Dubbo](https://dubbo.apache.org/zh/docs/references/configuration/annotation/)
+
+1. 依赖导入dubbo-starter、其他依赖
+
+https://github.com/apache/dubbo-spring-boot-project/blob/0.2.x/README_CN.md
+
+版本选择要按照上面的版本说明wiki来，不然很容易报错
+
+```xml
+        <!--Nacos注册中心-->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.alibaba.spring</groupId>
+                    <artifactId>spring-context-support</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.apache.dubbo/dubbo -->
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo</artifactId>
+            <version>2.7.13</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.alibaba.spring</groupId>
+            <artifactId>spring-context-support</artifactId>
+            <version>1.0.11</version>
+        </dependency>
+```
+
+2. 配置provider
+
+假设 Nacos Server 同样运行在服务器 `10.20.153.10` 上，并使用默认 Nacos 服务端口 `8848`，您只需将 `dubbo.registry.address` 属性调整如下：
+
+```yml
+## Nacos registry address
+dubbo.registry.address = nacos://10.20.153.10:8848
+```
+
+完成业务服务层的逻辑，暴露服务
+
+```java
+在服务上加注解
+@com.alibaba.dubbo.config.annotation.Service
+```
+
+在主程序开始基于注解的dubbo功能
+
+```java
+@EnableDubbo
+```
+
+这样配置的服务就会注册到nacos了
+
+![](/Users/gaoweilin/Developer/eshopblvd/docs/assets/2.png)
+
+3. 配置consumer
+
+common基础库里定义好provider service的接口（类似于远程服务接口的声明），消费者引用远程provider服务时用，基础库service包下，后续会从注册中心自动发现provider地址
+
+```java
+@Reference
+ProviderTest providerTest;
+```
+
+配置好yml
+
+在主程序开始基于注解的dubbo功能
+
+```java
+@EnableDubbo
+```
+
+具体例子可参考：[GitHub - 7Savage/DubboStudy: 尚硅谷Dubbo学习](https://github.com/7Savage/DubboStudy)
+
+踩坑记录：
+
+1. com.alibaba.dubbo.rpc.RpcException: Fail to start server(url: dubbo://xxx.xxx.xxx.xxx:20880/, Failed to bind NettyServer on /xxx.xxx.xxx.xxx:20880, cause: Failed to bind to: /0.0.0.0:20880
+
+解决：报错信息显示绑定到本机的20880端口失败，本地绑定的地址已经被使用，将dubbo.protocol.port的端口号其他非占用端口
+
+2. com.alibaba.dubbo.rpc.RpcException: No provider available from registry xxx for service
+
+解决：provider的接口我定义在基础库了，基础库的包路径和实际provider的包路径不同了，由于provider是根据service的报路径来命名的，例如providers:com.hatsukoi.eshopblvd.product.service.ProviderTest，所以根因就是consumer在引用provider的接口时发现nacos中没有这个命名的服务
+
+
+
+demo的逻辑是provider提供服务，返回字符串“You get response from provider!”，consumer新增一个controller，调用cosumer的服务，其中远程调用了provider的服务，最终返回provider服务返回的字符串
+
+最终，问题都解决了～
+
+![](/Users/gaoweilin/Developer/eshopblvd/docs/assets/5.png)
+
+![](/Users/gaoweilin/Developer/eshopblvd/docs/assets/4.png)

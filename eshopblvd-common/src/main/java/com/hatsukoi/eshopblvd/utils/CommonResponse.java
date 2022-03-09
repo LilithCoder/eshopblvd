@@ -69,7 +69,8 @@ public class CommonResponse extends HashMap<String, Object> {
      *
      * @param data
      */
-    public void setData(Object data) {
+    public CommonResponse setData(Object data) {
         put("data", data);
+        return this;
     }
 }

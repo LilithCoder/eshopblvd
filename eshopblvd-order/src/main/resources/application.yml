@@ -16,3 +16,13 @@ mybatis:
 
 server:
   port: 9000
+
+dubbo:
+  application:
+    name: eshopblvd-order-dubbo
+  registry:
+    address: nacos://47.103.8.41:8848
+  monitor:
+    protocol: registry
+  protocol:
+    port: 20890
