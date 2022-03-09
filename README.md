@@ -795,7 +795,9 @@ ProviderTest providerTest;
 @EnableDubbo
 ```
 
-具体例子可参考：[GitHub - 7Savage/DubboStudy: 尚硅谷Dubbo学习](https://github.com/7Savage/DubboStudy)
+demo具体例子可参考：[GitHub - 7Savage/DubboStudy: 尚硅谷Dubbo学习](https://github.com/7Savage/DubboStudy)
+
+demo的逻辑是provider提供服务，返回字符串“You get response from provider!”，consumer新增一个controller，调用cosumer的服务，其中远程调用了provider的服务，最终返回provider服务返回的字符串
 
 踩坑记录：
 
@@ -807,11 +809,7 @@ ProviderTest providerTest;
 
 解决：provider的接口我定义在基础库了，基础库的包路径和实际provider的包路径不同了，由于provider是根据service的报路径来命名的，例如providers:com.hatsukoi.eshopblvd.product.service.ProviderTest，所以根因就是consumer在引用provider的接口时发现nacos中没有这个命名的服务
 
-
-
-demo的逻辑是provider提供服务，返回字符串“You get response from provider!”，consumer新增一个controller，调用cosumer的服务，其中远程调用了provider的服务，最终返回provider服务返回的字符串
-
-最终，问题都解决了～
+最终，问题都解决了～nacos成功服务发现，返回结果符合预期
 
 ![](/Users/gaoweilin/Developer/eshopblvd/docs/assets/5.png)
 
