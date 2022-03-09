@@ -1,6 +1,6 @@
-package com.hatsukoi.eshopblvd.order.controller;
+package com.hatsukoi.eshopblvd.consumer.Controller;
 
-import com.hatsukoi.eshopblvd.order.service.ConsumerTestService;
+import com.hatsukoi.eshopblvd.consumer.Service.ConsumerService;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -9,17 +9,18 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 /**
  * @author gaoweilin
- * @date 2022/03/09 Wed 3:07 AM
+ * @date 2022/03/10 Thu 1:40 AM
  */
 
 @Controller
-public class ConsumerTestController {
+public class ConsumerController {
+
     @Autowired
-    ConsumerTestService consumerTestService;
+    ConsumerService consumerService;
 
     @ResponseBody
     @RequestMapping("/invokeProvider")
     public CommonResponse consumerTest() {
-        return CommonResponse.success().setData(consumerTestService.consumerTest());
+        return CommonResponse.success().setData(consumerService.requestProvider());
     }
 }
