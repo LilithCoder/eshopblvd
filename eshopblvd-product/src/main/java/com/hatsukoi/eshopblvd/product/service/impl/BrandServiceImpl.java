@@ -15,6 +15,7 @@ import java.util.List;
  * @author gaoweilin
  * @date 2022/03/06 Sun 11:16 PM
  */
+@com.alibaba.dubbo.config.annotation.Service
 @Service
 public class BrandServiceImpl implements BrandService {
     @Autowired

@@ -4,6 +4,15 @@ spring:
     password: root
     url: jdbc:mysql://47.103.8.41:3306/eshopblvd_ums
     driver-class-name: com.mysql.cj.jdbc.Driver
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 47.103.8.41:8848
+  application:
+    name: eshopblvd-member
 
 mybatis:
-  mapper-locations: classpath*:com/hatsukoi/eshopblvd/product/member/*.xml
+  mapper-locations: classpath*:com/hatsukoi/eshopblvd/member/mapper/*.xml
+
+server:
+  port: 8000
