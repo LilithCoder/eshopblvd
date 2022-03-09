@@ -821,6 +821,8 @@ demo的逻辑是provider提供服务，返回字符串“You get response from p
 
 解决：provider的接口我定义在基础库了，基础库的包路径和实际provider的包路径不同了，由于provider是根据service的报路径来命名的，例如providers:com.hatsukoi.eshopblvd.provider.Service.ProviderService，所以根因就是consumer在引用provider的接口时发现nacos中没有这个命名的服务，解决方案就是provider的service实现和consumer引用reference就直接用导入common库包下的接口
 
+以后服务接口声明只放在common基础库了
+
 最终，问题都解决了～nacos成功服务发现，返回结果符合预期
 
 ![](/Users/gaoweilin/Developer/eshopblvd/docs/assets/5.png)
