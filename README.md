@@ -828,3 +828,132 @@ demo的逻辑是provider提供服务，返回字符串“You get response from p
 ![](/Users/gaoweilin/Developer/eshopblvd/docs/assets/5.png)
 
 ![](/Users/gaoweilin/Developer/eshopblvd/docs/assets/4.png)
+
+### Nacos配置中心
+
+官方文档: [spring-cloud-alibaba/readme-zh.md at 2.2.x · alibaba/spring-cloud-alibaba · GitHub](https://github.com/alibaba/spring-cloud-alibaba/blob/2.2.x/spring-cloud-alibaba-examples/nacos-example/nacos-config-example/readme-zh.md)
+
+先导入依赖
+
+```xml
+<dependency>
+    <groupId>com.alibaba.cloud</groupId>
+    <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+</dependency>
+```
+
+springboot 规定bootstrap.properties优先于application.properties加载
+
+在应用的 /src/main/resources/bootstrap.properties 配置文件中配置 Nacos Config 元数据
+
+```properties
+spring.application.name=nacos-config-example
+spring.cloud.nacos.config.server-addr=127.0.0.1:8848
+```
+
+```java
+@Value注解可以直接获取application.properties中的配置
+@Value("${spring.application.name}")
+private String name;
+```
+
+目的是在配置中心动态改配置，而不是在本地改完配置文件重新打包部署
+
+在nacos创建dataid为eshopblvd-coupon.properties的配置，默认以服务名来命名
+
+![](./docs/assets/7.png)
+
+为了nacos中修改的配置能够被动态地刷新，在控制器应用加上注解@RefreshScope
+
+```java
+@RefreshScope
+@RestController
+@RequestMapping("/coupon")
+public class CouponController {
+    // ...
+}
+```
+
+再根据`@Value("${xxx}")`来获取配置的值
+
+如果配置中心和当前应用的配置文件中都配置了相同的项，优先使用配置中心的配置
+
+#### 命名空间
+
+作用是为了配置隔离
+
+- 基于环境进行隔离
+
+默认：public(保留空间)；默认新增的所有配置都在public空间。  
+
+用途举例：开发，测试，生产：利用命名空间来做环境隔离。  
+
+注意：在bootstrap.properties；配置上，需要使用哪个命名空间下的配置
+
+```properties
+spring.cloud.nacos.config.namespace=9de62e44-cd2a-4a82-bf5c-95878bd5e871
+```
+
+9de62e44-cd2a-4a82-bf5c-95878bd5e871为命名空间自动生成的id
+
+![](./docs/assets/8.png)
+
+- 基于微服务之间进行隔离
+
+当然每一个微服务之间为了互相隔离配置，每一个微服务也可以创建自己的命名空间，只加载自己命名空间下的所有配置  
+
+#### 配置集
+
+一组相关或者不相关的配置项的集合称为配置集，类似于一个配置yml文件
+
+#### 配置集ID
+
+类似配置文件名，在nacos中就是Data ID
+
+#### 配置分组
+
+默认所有的配置集都属于：DEFAULT_GROUP，后续可以根据业务来定制
+
+![](./docs/assets/9.png)
+
+```properties
+指定配置的group
+spring.cloud.nacos.config.group=CUSTOM_GROUP
+```
+
+本项目中的使用：每个微服务创建自己的命名空间，使用配置分组group区分环境，dev，test，prod，这些在bootstrap.properties都可以制定
+
+![](./docs/assets/10.png)
+
+#### 同时加载多个配置集
+
+当微服务数量很庞大时，将所有配置都书写到一个配置文件中，显然不是太合适。对此我们可以将配置按照功能的不同，拆分为不同的配置文件。可以将数据源有关的配置写到一个配置文件中，框架有关的写到另外一个配置文件中
+
+微服务任何配置信息，任何配置文件都可以放在配置中心中，只需要在bootstrap.properties说明加载配置中心中哪些配置文件即可
+
+datasource.yml、mybatis.yml、other.yml为nacos的配置集
+
+bootstrap.properties举例:
+
+```yml
+spring.application.name=gulimall-coupon
+
+spring.cloud.nacos.config.server-addr=127.0.0.1:8848
+spring.cloud.nacos.config.namespace=1986f4f3-69e0-43bb-859c-abe427b19f3a
+
+spring.cloud.nacos.config.ext-config[0].data-id=datasource.yml
+spring.cloud.nacos.config.ext-config[0].group=dev
+spring.cloud.nacos.config.ext-config[0].refresh=true
+
+spring.cloud.nacos.config.ext-config[1].data-id=mybatis.yml
+spring.cloud.nacos.config.ext-config[1].group=dev
+spring.cloud.nacos.config.ext-config[1].refresh=true
+
+spring.cloud.nacos.config.ext-config[2].data-id=other.yml
+spring.cloud.nacos.config.ext-config[2].group=dev
+spring.cloud.nacos.config.ext-config[2].refresh=true
+```
+
+获取配置项的值使用这两个注解：`@Value，@ConfigurationProperties`
+
+微服务只需要保留bootstrap.properties，一启动自动来配置中心获取配置，可以将所有配置都放在配置中心

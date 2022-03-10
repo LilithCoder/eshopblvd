@@ -15,4 +15,4 @@ mybatis:
   mapper-locations: classpath*:com/hatsukoi/eshopblvd/coupon/mapper/*.xml
 
 server:
-  port: 7000
+  port: 6000
