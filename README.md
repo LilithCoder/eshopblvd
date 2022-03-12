@@ -957,3 +957,76 @@ spring.cloud.nacos.config.ext-config[2].refresh=true
 获取配置项的值使用这两个注解：`@Value，@ConfigurationProperties`
 
 微服务只需要保留bootstrap.properties，一启动自动来配置中心获取配置，可以将所有配置都放在配置中心
+
+## API网关
+
+作用：
+
+1. 动态地将请求路由到各个微服务，能从注册中心实时感知服务的上/下线
+
+2. 鉴权、监控、限流、日志输出、统一功能的处理
+
+### SpringCloud Gateway
+
+官方wiki：[Spring Cloud Gateway](https://spring.io/projects/spring-cloud-gateway)
+
+- 路由 (route)
+
+路由是网关最基础的部分，路由信息有一个ID、一个目的URL、一组断言和一组 Filter 组成。如果断言路由为真，则说明请求的 URL 和配置匹配
+
+- 断言 (predicate)
+
+Java8 中的断言函数。Spring Cloud Gateway 中的断言函数输入类型是 Spring5.0 框
+架中的 ServerWebExchange。Spring Cloud Gateway 中的断言函数允许开发者去定义匹配
+来自于 http request 中的任何信息，比如请求头和参数等
+
+- 过滤器 (filter)
+
+一个标准的 Spring webFilter。过滤器 Filter 将会对请求和响应进行修改
+处理
+
+### 工作流程
+
+<img title="" src="./docs/assets/11.png" alt="" width="309">
+
+客户端发送请求给网关，通过 HandlerMapping 判断是否请求满足某个路由，满足就发给网关的 WebHandler。这个 WebHandler 将请求交给一个过滤器链，然后请求再到达目标服务
+
+新建网关模块，引入gateway依赖以及common库 
+
+```xml
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-gateway</artifactId>
+</dependency>
+```
+
+网关需要注册到nacos，需要发现其他服务的位置，添加服务注册发现注解
+
+```java
+@EnableDiscoveryClient
+```
+
+配置文件照常配置nacos注册中心地址、应用名称、配置中心地址
+
+启动服务时可能会报错，请务必确认springboot, springcloud的版本映射关系正确
+
+参考：[版本说明 · alibaba/spring-cloud-alibaba Wiki · GitHub](https://github.com/alibaba/spring-cloud-alibaba/wiki/%E7%89%88%E6%9C%AC%E8%AF%B4%E6%98%8E)
+
+报错显示缺少负载均衡的依赖，添加相关依赖
+
+```xml
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+</dependency>
+```
+
+遇到报错：Failed to configure a DataSource: 'url' attribute is not specified and no embedded datasource，依赖中有mybatis
+
+DataSourceAutoConfiguration会自动加载.可以排除此类的自动配置，在启动类中加入
+
+```java
+@SpringBootApplication(exclude= {DataSourceAutoConfiguration.class})
+```
+
+ok~服务启动，网关配置完成✅注册中心里已经有eshopblvd-gateway服务了
