@@ -173,7 +173,7 @@ $ docker exec -it redis redis-cli
 
 TODO：所有数据库表结构的解析
 
-## 后台系统
+## 后台管理系统前端项目
 
 前端系统Vue  [GitHub - weilingao/eshopblvd-admin-vue: 电商网站后台管理系统](https://github.com/weilingao/eshopblvd-admin-vue)
 
@@ -1033,4 +1033,99 @@ ok~服务启动，网关配置完成✅注册中心里已经有eshopblvd-gateway
 
 ### 商品服务
 
-三级分类
+#### 三级分类查询
+
+插入所有的商品分类数据pms_category.sql 
+
+功能#1：树形展示三级分类：查出所有的分类以及其子分类，并且以父子树形结构组装起来，最终能够展示在后台管理系统以及电商网站
+
+- 查出所有的一级分类，可以根据属性parent_cid、cat_level来判断分类层级，parent_cid为0或者cat_level为1表示目前分类为第一级分类
+
+- 为分类实体添加children属性，由于Category实体类实现了Serilizable接口，Category对象就可以被序列化，其中children不需要被序列化，换句话说就是仅存于调用者的内存中而不会写到磁盘里持久化，那么我们就可以在children字段前添加关键字transient`private transient List<Category> children;`，序列化对象的时候，这个属性就不会序列化到指定的目的地中
+  
+  【面试】[Java transient关键字使用小记 - Alexia(minmin) - 博客园](https://www.cnblogs.com/lanxuezaipiao/p/3369962.html)
+
+- 递归树形结构：在所有分类中查找到所有一级分类的子分类，继续遍历递归找子分类的子分类直到叶层级分类，并用setChildren组装树结构，并排序
+  
+  【面试】这个递归查找的时间复杂度是？有没有优化空间？
+
+- 前端：后台管理系统来到商品管理->分类管理的时候，created()生命周期钩子函数里发起请求获取三级分类
+
+- 跨源请求：同源策略
+  
+  现在前端发的请求都是走API网关了，由于API网关的端口为80，和localhost:8080不同源，浏览器就会因为同源策略拦截跨源请求（同源策略：是指协议、域名、端口都要相同，其中有一个不同都会产生跨域）
+
+- 跨域流程：
+  
+  ![](./docs/assets/31.png)
+
+- 解决跨域：
+  
+  【面试】如何解决浏览器同源策略下无法跨域请求的问题？
+  
+  发预检请求问能不能跨域，服务器响应能跨域即可，即在预检请求的响应里配置相关的响应头
+  
+  ![](./docs/assets/32.png)
+  
+  所有请求响应都需要添加这些字段，所以在网关里添加一个过滤器去完成这个工作
+  
+  springboot提供了corswebfilter，将其放入容器就能起作用，在网关新建一个配置类CorsConfig用来做过滤，允许所有的请求跨域。
+  
+  ```java
+  @Configuration
+  public class CorsConfig {
+      /**
+       * Bean注解使其加入容器中
+       * @return
+       */
+      @Bean
+      public CorsWebFilter corsWebFilter() {
+          UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+          // 跨域配置，*表示允许全部
+          CorsConfiguration corsConfiguration = new CorsConfiguration();
+          corsConfiguration.addAllowedHeader("*");
+          corsConfiguration.addAllowedMethod("*");
+          corsConfiguration.addAllowedOrigin("*");
+          // 是否允许携带cookie进行跨域
+          corsConfiguration.setAllowCredentials(true);
+          // /**表示任意路径都要跨域配置
+          source.registerCorsConfiguration("/**", corsConfiguration);
+          return new CorsWebFilter(source);
+      }
+  }
+  ```
+
+- API网关添加商品服务的路由
+  
+  断言到路径匹配的，将其路径重写，去除/api
+  
+  ```yml
+  spring: 
+    cloud:
+      gateway:
+        routes:
+          - id: product-route
+            uri: lb://eshopblvd-product
+            predicates:
+              - Path=/api/product/**
+            filters:
+              - RewritePath=/api/(?<segment>.*),/$\{segment}
+  ```
+
+- 验证
+  
+  刷新网页～
+  
+  先发送预检请求：
+  
+  <img src="./docs/assets/34.png" title="" alt="" width="650">
+  
+  网关能够发现商品服务的地址，所以发给88端口API网关的请求成功负载均衡路由转发给商品服务，并返回三级分类的树形数据
+  
+  ![](./docs/assets/35.png)
+  
+  接下来就是通过vue展示出三级分类的内容了，这里不细展开了，直接去看前端代码就好
+  
+  ![](./docs/assets/37.png)
+
+#### 三级分类删除

@@ -8,6 +8,14 @@ spring:
     nacos:
       discovery:
         server-addr: 47.103.8.41:8848
+    gateway:
+      routes:
+        - id: product-route
+          uri: lb://eshopblvd-product
+          predicates:
+            - Path=/api/product/**
+          filters:
+            - RewritePath=/api/(?<segment>.*),/$\{segment}
   application:
     name: eshopblvd-gateway
 
