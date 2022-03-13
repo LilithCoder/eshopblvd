@@ -77,8 +77,6 @@ $ docker restart xxx
 $ docker stop ${CONTAINER_ID}
 $ docker rm ${CONTAINER_ID}
 $ docker image rm 
-
-
 ```
 
 配置docker阿里云镜像加速
@@ -300,8 +298,6 @@ mybatis:
 
 - 接下俩就是实现service业务层、controller了
 
-
-
 【面试】mybatis的优缺点？
 
 【面试】# MyBatis 中#{}和${}区别
@@ -369,8 +365,6 @@ public CommonPage<PmsProduct> productList(Long brandId, Integer pageNum, Integer
     return CommonPageInfo.convertToCommonPage(productList);
 }
 ```
-
-
 
 参考wiki：
 
@@ -682,17 +676,17 @@ $ docker update nacos-server --restart=always
  @EnableDiscoveryClient
  public class ProviderApplication {
 
- 	public static void main(String[] args) {
- 		SpringApplication.run(ProviderApplication.class, args);
- 	}
+     public static void main(String[] args) {
+         SpringApplication.run(ProviderApplication.class, args);
+     }
 
- 	@RestController
- 	class EchoController {
- 		@GetMapping(value = "/echo/{string}")
- 		public String echo(@PathVariable String string) {
- 				return string;
- 		}
- 	}
+     @RestController
+     class EchoController {
+         @GetMapping(value = "/echo/{string}")
+         public String echo(@PathVariable String string) {
+                 return string;
+         }
+     }
  }
 ```
 
@@ -705,7 +699,7 @@ $ docker update nacos-server --restart=always
 
 服务一启动，就能在服务列表中看到我们的微服务了
 
-![](/Users/gaoweilin/Developer/eshopblvd/docs/assets/1.png)
+![](./docs/assets/1.png)
 
 #### springboot整合dubbo
 
@@ -776,7 +770,7 @@ dubbo.registry.address = nacos://10.20.153.10:8848
 
 这样配置的服务就会注册到nacos了
 
-![](/Users/gaoweilin/Developer/eshopblvd/docs/assets/2.png)
+![](./docs/assets/2.png)
 
 3. 编写接口&配置consumer
 
@@ -825,9 +819,9 @@ demo的逻辑是provider提供服务，返回字符串“You get response from p
 
 最终，问题都解决了～nacos成功服务发现，返回结果符合预期
 
-![](/Users/gaoweilin/Developer/eshopblvd/docs/assets/5.png)
+![](./docs/assets/5.png)
 
-![](/Users/gaoweilin/Developer/eshopblvd/docs/assets/4.png)
+![](./docs/assets/4.png)
 
 ### Nacos配置中心
 
@@ -1030,3 +1024,13 @@ DataSourceAutoConfiguration会自动加载.可以排除此类的自动配置，�
 ```
 
 ok~服务启动，网关配置完成✅注册中心里已经有eshopblvd-gateway服务了
+
+## 前端ES6 & Vue
+
+[ES6语法&Vue基础知识总结](./docs/es6_vue.pdf)
+
+## 业务开发
+
+### 商品服务
+
+三级分类
