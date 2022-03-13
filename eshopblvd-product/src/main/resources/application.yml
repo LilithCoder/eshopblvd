@@ -26,3 +26,5 @@ dubbo:
     protocol: registry
   protocol:
     port: 20880
+logging:
+  level: debug

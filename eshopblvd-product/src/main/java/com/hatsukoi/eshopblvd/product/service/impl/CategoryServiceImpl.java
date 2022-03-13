@@ -2,6 +2,7 @@ package com.hatsukoi.eshopblvd.product.service.impl;
 
 import com.hatsukoi.eshopblvd.product.dao.CategoryMapper;
 import com.hatsukoi.eshopblvd.product.entity.Category;
+import com.hatsukoi.eshopblvd.product.entity.CategoryExample;
 import com.hatsukoi.eshopblvd.product.service.CategoryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ public class CategoryServiceImpl implements CategoryService {
      */
     @Override
     public List<Category> getCategoryTree() {
+        // TODO: 查询时只查showStatus为1的分类
         // 查出所有分类
         List<Category> allCategories = this.categoryMapper.selectByExample(null);
         // 从所有一级分类开始查找并组装其子分类
@@ -35,6 +37,15 @@ public class CategoryServiceImpl implements CategoryService {
                     return category;
                 }).collect(Collectors.toList());
         return level1Categories;
+    }
+
+    @Override
+    public void removeCategoriesByIds(List<Long> catIds) {
+        // TODO: 先检查当前删除的分类是否已经没有子分类或者是否被其他地方引用，没有才可以删
+        // 根据catIds批量删除分类
+        CategoryExample example = new CategoryExample();
+        example.createCriteria().andCatIdIn(catIds);
+        categoryMapper.deleteByExample(example);
     }
 
     /**

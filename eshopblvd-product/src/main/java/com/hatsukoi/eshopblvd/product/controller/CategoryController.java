@@ -4,6 +4,7 @@ import com.hatsukoi.eshopblvd.product.entity.Category;
 import com.hatsukoi.eshopblvd.product.service.CategoryService;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -33,4 +34,16 @@ public class CategoryController {
         result.put("categoryList", list);
         return CommonResponse.success().setData(result);
     }
+
+    /**
+     * 根据catId数组批量删除分类
+     * @param catIds
+     * @return
+     */
+    @RequestMapping("/delete")
+    public CommonResponse deleteCategories(@RequestBody List<Long> catIds) {
+        categoryService.removeCategoriesByIds(catIds);
+        return CommonResponse.success();
+    }
+
 }

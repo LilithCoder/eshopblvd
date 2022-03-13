@@ -1128,4 +1128,46 @@ ok~服务启动，网关配置完成✅注册中心里已经有eshopblvd-gateway
   
   ![](./docs/assets/37.png)
 
-#### 三级分类删除
+#### 三级分类删除/添加/修改
+
+只有当前分类没有子分类的时候，才可以delete
+
+只有当前分类是一级或二级分类的时候，才可以append
+
+所有层级的分类都可以edit
+
+- 批量删除
+  
+  这次批量删除是post请求
+  
+  @RequestBody:获取请求体，必须发送POST请求
+  
+  SpringMVC自动将请求体的数据（json），转为对应的对象
+  
+  ```java
+  @RequestMapping("/delete")
+  public CommonResponse deleteCategories(@RequestBody List<Long> catIds) {
+      // ...    
+  }
+  ```
+  
+  这里的删除不是物理删除，而是逻辑删除，字段show_status为0代表这个分类被删除了，为1反之
+  
+  mybatis没有mybatis-plus那样逻辑删除的注解`@TableLogic`，这次就先不搞逻辑删除了
+  
+  删除逻辑是先生成example后，再根据这个criteria去删除数据
+  
+  ```java
+      @Override
+      public void removeCategoriesByIds(List<Long> catIds) {
+          // TODO: 先检查当前删除的分类是否已经没有子分类或者是否被其他地方引用，没有才可以删
+          // 根据catIds批量删除分类
+          CategoryExample example = new CategoryExample();
+          example.createCriteria().andCatIdIn(catIds);
+          categoryMapper.deleteByExample(example);
+      }
+  ```
+  
+  成功删除！
+  
+  ![](./docs/assets/38.png)

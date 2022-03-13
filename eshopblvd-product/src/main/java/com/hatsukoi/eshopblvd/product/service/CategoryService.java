@@ -10,4 +10,6 @@ import java.util.List;
  */
 public interface CategoryService {
     List<Category> getCategoryTree();
+
+    void removeCategoriesByIds(List<Long> catIds);
 }
