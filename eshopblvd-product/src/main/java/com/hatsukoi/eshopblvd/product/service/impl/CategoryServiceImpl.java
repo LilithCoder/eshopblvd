@@ -92,7 +92,9 @@ public class CategoryServiceImpl implements CategoryService {
     public int batchUpdateCategories(List<Category> categories) {
         for (Category category: categories) {
             int count = updateCategory(category);
-            return 0;
+            if (count == 0) {
+                return 0;
+            }
         }
         return 1;
     }
