@@ -1229,3 +1229,61 @@ ok~服务启动，网关配置完成✅注册中心里已经有eshopblvd-gateway
   添加删除按钮
   
   【面试】批量更新的mybatis映射xml文件该怎么写？
+
+#### 总结
+
+- 这部分前端复杂逻辑较多，后端这里注意的点就两个，分类树结构的生成是否有优化空间，mybatis批量更新该如何做？
+
+#### 品牌管理
+
+- 新增接口product/brand/list：根据关键字模糊分页查询品牌
+  
+  ```java
+      /**
+       * 分页查询品牌列表
+       * 查询条件：关键字为brand_id或是模糊查询brand_name
+       * @return
+       */
+      @Override
+      public CommonPageInfo<Brand> queryPageForBrands(Map<String, Object> params) {
+          // 分页参数
+          int pageNum = 1;
+          int pageSize = 10;
+          // 模糊搜索关键词
+          String key = "";
+          if (params.get("page") != null) {
+              pageNum = Integer.parseInt(params.get("page").toString());
+          }
+          if (params.get("limit") != null) {
+              pageSize = Integer.parseInt(params.get("limit").toString());
+          }
+          if (params.get("key") != null) {
+              key = params.get("key").toString();
+          }
+          PageHelper.startPage(pageNum, pageSize);
+          BrandExample brandExample = new BrandExample();
+          // 关键词模糊查询品牌名
+          if (!StringUtils.isEmpty(key)) {
+              brandExample.createCriteria().andNameLike(key);
+          }
+          // 关键字匹配brandId
+          if (!key.equals("") && StringUtils.isNumeric(key)) {
+              brandExample.or().andBrandIdEqualTo(Long.parseLong(key));
+          }
+          List<Brand> brandList = brandMapper.selectByExample(brandExample);
+          return CommonPageInfo.convertToCommonPage(brandList);
+      }
+  ```
+  
+  参考wiki：[mybatis Example Criteria like 模糊查询_我在阴山下-CSDN博客_criteria.andlike](https://blog.csdn.net/ouzhuangzhuang/article/details/82758683)
+
+- 新增接口product/brand/update/status
+  
+  更新其showStatus
+  
+  ```java
+      @Override
+      public int updateStatus(Brand brand) {
+          return brandMapper.updateByPrimaryKeySelective(brand);
+      }
+  ```

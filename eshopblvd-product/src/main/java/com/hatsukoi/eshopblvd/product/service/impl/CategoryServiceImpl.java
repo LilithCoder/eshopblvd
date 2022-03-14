@@ -90,6 +90,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional
     @Override
     public int batchUpdateCategories(List<Category> categories) {
+        // TODO: 批量更新这些待优化
         for (Category category: categories) {
             int count = updateCategory(category);
             if (count == 0) {
