@@ -1171,3 +1171,61 @@ ok~服务启动，网关配置完成✅注册中心里已经有eshopblvd-gateway
   成功删除！
   
   ![](./docs/assets/38.png)
+
+- 添加分类：
+  
+  新增接口：/product/category/insert
+  
+  将对话框里填完的category实体对象发请求给接口
+
+- 修改分类：
+  
+  新增接口：/product/category/update，/product/category/detail/{catId}
+  
+  /product/category/update 根据分类id查询：
+  
+  用selectByPrimaryKey来查询分类
+  
+  /product/category/detail/{catId} 根据catId去更新指定分类内容：updateByPrimaryKeySelective和updateByPrimaryKey的区别就是，updateByPrimaryKey当某一实体类的属性为null时，mybatis会使用动态sql过滤掉，不更新该字段，selective就是部分更新
+  
+  updateByPrimaryKey 将为空的字段在数据库中置为NULL
+  
+  ![](./docs/assets/39.png)
+  
+  ![](./docs/assets/40.png)
+
+- 前端逻辑：
+  
+  页面初始化时获取所有三级分类，点击删除时弹出对话框，确定后发送/delete请求后再次请求获取所有三级分类，且被删分类的父分类保持展开
+  
+  点击添加，提交表单后，将修改内容发请求给'/product/category/insert'后弹出修改成功消息，关闭对话框，刷新整个分类，并展开默认的分类
+  
+  点击修改，发送请求获取当前节点最新的数据，用作回显，提交表单后，将修改内容发请求给'/product/category/update'后弹出修改成功消息，关闭对话框，刷新整个分类，并展开默认的分类
+
+#### 三级分类拖拽
+
+- 限制可拖拽范围
+  
+  由于我们的菜单是三级分类，所以未防止超出三级的情况，有部分情况不允许被拖入：比如被拖拽的节点本身包含两级菜单，将其拖进第二层级的节点，那么最深层级就达到了四级，为防止这种情况的出现，我们需要编写在`<el-tree>`中绑定`allow-drop`属性并编写`allowDrop()`函数
+  
+  `allowDrop()`的思路为将被拖拽节点的子节点通过递归遍历找出最深节点的`level`，然后将被拖拽节点的相对深度与目标节点的相对深度相加，看是否超出最大深度3
+
+- 拖拽完成
+  
+  拖拽完成后我们需要更新三个状态：
+  
+  1. 当前节点最新的父节点id，
+  
+  2. 当前拖拽节点的最新顺序，遍历姊妹节点的顺序即为新顺序
+  
+  3. 当前拖拽节点的最新层级，当前拖拽层级变化需要更新拖拽节点及其子节点
+
+- 设置菜单拖动开关
+  
+  现在存在的一个问题是每次拖拽的时候，都会发送请求，更新数据库这样频繁的与数据库交互，现在想要实现一个拖拽过程中不更新数据库，拖拽完成后，通过`批量保存`统一提交拖拽后的数据
+
+- 批量删除
+  
+  添加删除按钮
+  
+  【面试】批量更新的mybatis映射xml文件该怎么写？
