@@ -1178,13 +1178,13 @@ ok~服务启动，网关配置完成✅注册中心里已经有eshopblvd-gateway
 
 - 添加分类：
   
-  新增接口：/product/category/insert
+  新增【接口】：/product/category/insert
   
   将对话框里填完的category实体对象发请求给接口
 
 - 修改分类：
   
-  新增接口：/product/category/update，/product/category/detail/{catId}
+  新增【接口】：/product/category/update，/product/category/detail/{catId}
   
   /product/category/update 根据分类id查询：
   
@@ -1240,7 +1240,7 @@ ok~服务启动，网关配置完成✅注册中心里已经有eshopblvd-gateway
 
 #### 品牌管理
 
-- 新增接口product/brand/list：根据关键字模糊分页查询品牌
+- 新增【接口】product/brand/list：根据关键字模糊分页查询品牌
   
   这是一个好的学习example用法的例子
   
@@ -1283,7 +1283,7 @@ ok~服务启动，网关配置完成✅注册中心里已经有eshopblvd-gateway
   
   参考wiki：[mybatis Example Criteria like 模糊查询_我在阴山下-CSDN博客_criteria.andlike](https://blog.csdn.net/ouzhuangzhuang/article/details/82758683)
 
-- 新增接口product/brand/update/status
+- 新增【接口】product/brand/update/status
   
   更新其showStatus
   
@@ -1623,7 +1623,7 @@ public class OSSController{
             - RewritePath=/api/thirdparty/(?<segment>.*),/$\{segment}
 ```
 
-接口请访问：[http://127.0.0.1:88/api/thirdparty/oss/policyAndSig](http://127.0.0.1:88/api/thirdparty/oss/policyAndSig)
+- 新增【接口】：[http://127.0.0.1:88/api/thirdparty/oss/policyAndSig](http://127.0.0.1:88/api/thirdparty/oss/policyAndSig)
 
 接口返回正确！
 
@@ -1632,5 +1632,7 @@ accessid, 加密后的策略，签名，上传文件存储的位置，上传的�
 ![](./docs/assets/50.png)
 
 浏览器想要上传文件，先要来这些信息，然后带着这些信息和文件上传给阿里云
+
+新增/修改品牌时，点击上传logo，在上传前会发请求给thirdparty/oss/policyAndSig
 
 【面试】对象存储的方案？详细说说？有哪些亮点
