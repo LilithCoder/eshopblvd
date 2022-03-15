@@ -2,9 +2,11 @@ package com.hatsukoi.eshopblvd.product.service.impl;
 
 import com.hatsukoi.eshopblvd.product.dao.CategoryMapper;
 import com.hatsukoi.eshopblvd.product.entity.Category;
+import com.hatsukoi.eshopblvd.product.entity.CategoryExample;
 import com.hatsukoi.eshopblvd.product.service.CategoryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -24,6 +26,7 @@ public class CategoryServiceImpl implements CategoryService {
      */
     @Override
     public List<Category> getCategoryTree() {
+        // TODO: 查询时只查showStatus为1的分类
         // 查出所有分类
         List<Category> allCategories = this.categoryMapper.selectByExample(null);
         // 从所有一级分类开始查找并组装其子分类
@@ -33,8 +36,68 @@ public class CategoryServiceImpl implements CategoryService {
                 }).map(category -> {
                     category.setChildren(getChildren(category, allCategories));
                     return category;
+                }).sorted((cat1, cat2) -> {
+                    // 子分类排序
+                    Integer sort1 = cat1.getSort() != null ? cat1.getSort() : 0;
+                    Integer sort2 = cat2.getSort() != null ? cat2.getSort() : 0;
+                    return sort1.compareTo(sort2);
                 }).collect(Collectors.toList());
         return level1Categories;
+    }
+
+    /**
+     * 根据分类id查询
+     * @param catId
+     * @return
+     */
+    @Override
+    public Category getCategoryById(Long catId) {
+        return categoryMapper.selectByPrimaryKey(catId);
+    }
+
+    @Override
+    public int removeCategoriesByIds(List<Long> catIds) {
+        // TODO: 先检查当前删除的分类是否已经没有子分类或者是否被其他地方引用，没有才可以删
+        // 根据catIds批量删除分类
+        CategoryExample example = new CategoryExample();
+        example.createCriteria().andCatIdIn(catIds);
+        return categoryMapper.deleteByExample(example);
+    }
+
+    /**
+     * 插入指定分类
+     * @param category
+     */
+    @Override
+    public int insertCategory(Category category) {
+        return categoryMapper.insert(category);
+    }
+
+    /**
+     * 根据catId去更新指定分类内容
+     * @param category
+     */
+    @Override
+    public int updateCategory(Category category) {
+        // updateByPrimaryKeySelective不同，当某一实体类的属性为null时，mybatis会使用动态sql过滤掉，不更新该字段
+        return categoryMapper.updateByPrimaryKeySelective(category);
+    }
+
+    /**
+     * 批量更新分类
+     * @param categories
+     */
+    @Transactional
+    @Override
+    public int batchUpdateCategories(List<Category> categories) {
+        // TODO: 批量更新这些待优化
+        for (Category category: categories) {
+            int count = updateCategory(category);
+            if (count == 0) {
+                return 0;
+            }
+        }
+        return 1;
     }
 
     /**

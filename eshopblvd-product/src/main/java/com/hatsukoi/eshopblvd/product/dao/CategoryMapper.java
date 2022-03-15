@@ -93,4 +93,6 @@ public interface CategoryMapper {
      * @mbg.generated
      */
     int updateByPrimaryKey(Category record);
+
+    int batchUpdateSelective(List<Category> categories);
 }

@@ -3,6 +3,8 @@ package com.hatsukoi.eshopblvd.product.service;
 import com.hatsukoi.eshopblvd.product.entity.Brand;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 
+import java.util.Map;
+
 /**
  * 品牌业务逻辑
  *
@@ -27,4 +29,10 @@ public interface BrandService {
      * @return
      */
     public CommonPageInfo<Brand> queryBrandsByShowStatus(int pageNum, int pageSize, byte showStatus);
+
+    CommonPageInfo<Brand> queryPageForBrands(Map<String, Object> params);
+
+    int updateBrand(Brand brand);
+
+    int updateStatus(Brand brand);
 }

@@ -16,6 +16,13 @@ spring:
             - Path=/api/product/**
           filters:
             - RewritePath=/api/(?<segment>.*),/$\{segment}
+
+        - id: thirdparty-route
+          uri: lb://eshopblvd-thirdparty
+          predicates:
+            - Path=/api/thirdparty/**
+          filters:
+            - RewritePath=/api/thirdparty/(?<segment>.*),/$\{segment}
   application:
     name: eshopblvd-gateway
 

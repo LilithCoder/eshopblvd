@@ -1,6 +1,7 @@
 package com.hatsukoi.eshopblvd.product.service;
 
 import com.hatsukoi.eshopblvd.product.entity.Category;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
@@ -10,4 +11,14 @@ import java.util.List;
  */
 public interface CategoryService {
     List<Category> getCategoryTree();
+
+    Category getCategoryById(Long catId);
+
+    int removeCategoriesByIds(List<Long> catIds);
+
+    int insertCategory(Category category);
+
+    int updateCategory(Category category);
+
+    int batchUpdateCategories(@Param("categories") List<Category> categories);
 }
