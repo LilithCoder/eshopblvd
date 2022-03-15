@@ -163,6 +163,8 @@ $ docker update redis --restart=always
 $ docker exec -it redis redis-cli
 ```
 
+![](./docs/assets/42.png)
+
 ## 项目结构初始化
 
 商品服务、用户服务、订单服务、优惠券服务、仓储服务、后台管理系统
@@ -581,6 +583,8 @@ class EshopblvdProductApplicationTests {
 运行成功～！输出结果符合预期
 
 ## 分布式系统环境搭建
+
+![](./docs/assets/43.png)
 
 [Spring Cloud Alibaba](https://spring.io/projects/spring-cloud-alibaba)
 
@@ -1238,6 +1242,8 @@ ok~服务启动，网关配置完成✅注册中心里已经有eshopblvd-gateway
 
 - 新增接口product/brand/list：根据关键字模糊分页查询品牌
   
+  这是一个好的学习example用法的例子
+  
   ```java
       /**
        * 分页查询品牌列表
@@ -1287,3 +1293,344 @@ ok~服务启动，网关配置完成✅注册中心里已经有eshopblvd-gateway
           return brandMapper.updateByPrimaryKeySelective(brand);
       }
   ```
+  
+  `@RequestParam`为获取get请求query参数
+  
+  `@RequestBody`为获取post请求的请求体
+  
+  ![](./docs/assets/41.png)
+
+#### 文件存储阿里云OSS
+
+- 传统的单体应用：
+  
+  浏览器上传文件，储存在业务服务器，下次需要文件，再请求
+  
+  和传统的单体应用不同，一个微服务由多个分布式服务器，那总不能每台服务器上都存上一摸一样的文件，所以这里我们选择将数据上传到统一的文件服务器上。这里我们选择将图片放置到阿里云上，使用对象存储。
+  
+  ![](./docs/assets/44.png)
+
+- 阿里云OSS
+  
+  阿里云OSS API文档：[简介 - 对象存储 OSS - 阿里云](https://help.aliyun.com/document_detail/31947.html?spm=5176.8465980.help.dexternal.4e701450ADp3n3)
+  
+  专业术语
+  
+  ![](./docs/assets/45.png)
+  
+  创建一个空间bucket
+  
+  ![](./docs/assets/46.png)
+
+- 文件上传方式选择
+  
+  第一种
+  
+  缺点：中间经过自己服务器，完全没必要，还浪费服务器性能 
+  
+  ![](./docs/assets/47.png)
+  
+  第二种
+  
+  由于上传需要的账号密码不能暴露在js，所以让服务器签名后上传oss，账号密码还是放在服务器。前端问服务器要policy上传策略，服务器利用阿里云的账号密码生成一个防伪签名，其中包含了访问阿里云的授权令牌、阿里云oss上传地址等信息。前端得到这些信息后，其中没有账号密码，前端带着防伪签名、文件传给阿里云
+
+- ![](./docs/assets/48.png)
+  
+  引入依赖
+  
+  ```xml
+  <dependency>
+      <groupId>com.aliyun.oss</groupId>
+      <artifactId>aliyun-sdk-oss</artifactId>
+      <version>3.10.2</version>
+  </dependency>
+  ```
+  
+  Java简单上传例子：[简单上传 - 对象存储 OSS - 阿里云](https://help.aliyun.com/document_detail/84781.html)
+  
+  1. 创建存储空间
+  
+  2. 获取供外网访问的endpoint（文件上传的地址）
+  
+  3. RAM控制台创建RAM用户，获取accesskey id和accesskey secret
+  
+  4. 给子用户添加权限「管理对象存储服务(OSS)权限」
+  
+  阿里云提供的例子（原生sdk）：
+
+```java
+import com.aliyun.oss.ClientException;
+import com.aliyun.oss.OSS;
+import com.aliyun.oss.OSSClientBuilder;
+import com.aliyun.oss.OSSException;
+import java.io.FileInputStream;
+import java.io.InputStream;
+
+public class Demo {
+
+    public static void main(String[] args) throws Exception {
+        // Endpoint以华东1（杭州）为例，其它Region请按实际情况填写。
+        String endpoint = "https://oss-cn-hangzhou.aliyuncs.com";
+        // 阿里云账号AccessKey拥有所有API的访问权限，风险很高。强烈建议您创建并使用RAM用户进行API访问或日常运维，请登录RAM控制台创建RAM用户。
+        String accessKeyId = "yourAccessKeyId";
+        String accessKeySecret = "yourAccessKeySecret";
+        // 填写Bucket名称，例如examplebucket。
+        String bucketName = "examplebucket";
+        // 填写Object完整路径，完整路径中不能包含Bucket名称，例如exampledir/exampleobject.txt。
+        String objectName = "exampledir/exampleobject.txt";
+        // 填写本地文件的完整路径，例如D:\\localpath\\examplefile.txt。
+        // 如果未指定本地路径，则默认从示例程序所属项目对应本地路径中上传文件流。
+        String filePath= "D:\\localpath\\examplefile.txt";
+
+        // 创建OSSClient实例。
+        OSS ossClient = new OSSClientBuilder().build(endpoint, accessKeyId, accessKeySecret);
+
+        try {
+            InputStream inputStream = new FileInputStream(filePath);            
+            // 创建PutObject请求。
+            ossClient.putObject(bucketName, objectName, inputStream);
+        } catch (OSSException oe) {
+            System.out.println("Caught an OSSException, which means your request made it to OSS, "
+                    + "but was rejected with an error response for some reason.");
+            System.out.println("Error Message:" + oe.getErrorMessage());
+            System.out.println("Error Code:" + oe.getErrorCode());
+            System.out.println("Request ID:" + oe.getRequestId());
+            System.out.println("Host ID:" + oe.getHostId());
+        } catch (ClientException ce) {
+            System.out.println("Caught an ClientException, which means the client encountered "
+                    + "a serious internal problem while trying to communicate with OSS, "
+                    + "such as not being able to access the network.");
+            System.out.println("Error Message:" + ce.getMessage());
+        } finally {
+            if (ossClient != null) {
+                ossClient.shutdown();
+            }
+        }
+    }
+}                  
+```
+
+[aliyun-spring-boot/aliyun-spring-boot-samples/aliyun-oss-spring-boot-sample at master · alibaba/aliyun-spring-boot · GitHub](https://github.com/alibaba/aliyun-spring-boot/tree/master/aliyun-spring-boot-samples/aliyun-oss-spring-boot-sample)
+
+不用原生sdk了，换成springcloud alibaba oss
+
+**业务逻辑**
+
+创建一个微服务来整合所有第三方服务eshopblvd-thirdparty
+
+1. 引入starter依赖
+
+```xml
+    <dependency>
+        <groupId>com.alibaba.cloud</groupId>
+        <artifactId>spring-cloud-starter-alicloud-oss</artifactId>
+        <version>2.2.0.RELEASE</version>
+    </dependency> 
+```
+
+2. 配置accessKeyId, secretAccessKey, endpoint
+
+```yml
+spring:
+  cloud:
+    alicloud:
+      access-key: LTAI4G4W1RA4JXz2QhoDwHhi
+      secret-key: R99lmDOJumF2x43ZBKT259Qpe70Oxw
+      oss:
+        endpoint: oss-cn-shanghai.aliyuncs.com
+```
+
+3. 配置文件，注册到注册中心
+   
+   ```yml
+   spring:
+     application:
+       name: gulimall-third-party
+     cloud:
+       nacos:
+         discovery:
+           server-addr: 47.103.8.41:8848
+   server:
+     port: 30000
+   ```
+
+4. 在主启动类中开启服务的注册和发现`@EnableDiscoveryClient`
+
+5. 注入ossclient来操作文件上传下载等操作
+
+```java
+@Autowired
+private OSSClient ossClient;
+```
+
+最终采取方案：服务端签名后直传 [服务端签名后直传 - 对象存储 OSS - 阿里云](https://help.aliyun.com/document_detail/31926.html)
+
+采用JavaScript客户端直接签名（参见[JavaScript客户端签名直传](https://help.aliyun.com/document_detail/31925.html#concept-frd-4gy-5db)）时，AccessKeyID和AcessKeySecret会暴露在前端页面，因此存在严重的安全隐患。因此，OSS提供了服务端签名后直传的方案。
+
+服务端签名后直传的原理如下：
+
+1. 用户发送上传Policy请求到应用服务器。
+2. 应用服务器返回上传Policy和签名给用户。
+3. 用户直接上传数据到OSS。
+
+![时序图](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/0747006361/p139016.png)
+
+签名该如何获取？[Java - 对象存储 OSS - 阿里云](https://help.aliyun.com/document_detail/91868.htm?spm=a2c4g.11186623.0.0.16073967A7h3hQ#concept-ahk-rfz-2fb)
+
+签名直传服务
+
+签名直传服务响应客户端发送给应用服务器的GET消息，代码片段如下：
+
+```java
+protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+
+        // 阿里云账号AccessKey拥有所有API的访问权限，风险很高。强烈建议您创建并使用RAM用户进行API访问或日常运维，请登录RAM控制台创建RAM用户。
+       String accessId = "yourAccessKeyId";      
+       String accessKey = "yourAccessKeySecret"; 
+       // Endpoint以华东1（杭州）为例，其它Region请按实际情况填写。
+       String endpoint = "oss-cn-hangzhou.aliyuncs.com"; 
+       // 填写Bucket名称，例如examplebucket。
+       String bucket = "examplebucket"; 
+       // 填写Host名称，格式为https://bucketname.endpoint。                   
+       String host = "https://examplebucket.oss-cn-hangzhou.aliyuncs.com"; 
+       // 设置上传回调URL，即回调服务器地址，用于处理应用服务器与OSS之间的通信。OSS会在文件上传完成后，把文件上传信息通过此回调URL发送给应用服务器。
+       String callbackUrl = "https://192.168.0.0:8888";
+       // 设置上传到OSS文件的前缀，可置空此项。置空后，文件将上传至Bucket的根目录下。
+       String dir = "exampledir/"; 
+
+        // 创建OSSClient实例。
+        OSS ossClient = new OSSClientBuilder().build(endpoint, accessId, accessKey);
+        try {
+            long expireTime = 30;
+            long expireEndTime = System.currentTimeMillis() + expireTime * 1000;
+            Date expiration = new Date(expireEndTime);
+            // PostObject请求最大可支持的文件大小为5 GB，即CONTENT_LENGTH_RANGE为5*1024*1024*1024。
+            PolicyConditions policyConds = new PolicyConditions();
+            policyConds.addConditionItem(PolicyConditions.COND_CONTENT_LENGTH_RANGE, 0, 1048576000);
+            policyConds.addConditionItem(MatchMode.StartWith, PolicyConditions.COND_KEY, dir);
+
+            String postPolicy = ossClient.generatePostPolicy(expiration, policyConds);
+            byte[] binaryData = postPolicy.getBytes("utf-8");
+            String encodedPolicy = BinaryUtil.toBase64String(binaryData);
+            String postSignature = ossClient.calculatePostSignature(postPolicy);
+
+            Map<String, String> respMap = new LinkedHashMap<String, String>();
+            respMap.put("accessid", accessId);
+            respMap.put("policy", encodedPolicy);
+            respMap.put("signature", postSignature);
+            respMap.put("dir", dir);
+            respMap.put("host", host);
+            respMap.put("expire", String.valueOf(expireEndTime / 1000));
+            // respMap.put("expire", formatISO8601Date(expiration));
+
+            JSONObject jasonCallback = new JSONObject();
+            jasonCallback.put("callbackUrl", callbackUrl);
+            jasonCallback.put("callbackBody",
+                    "filename=${object}&size=${size}&mimeType=${mimeType}&height=${imageInfo.height}&width=${imageInfo.width}");
+            jasonCallback.put("callbackBodyType", "application/x-www-form-urlencoded");
+            String base64CallbackBody = BinaryUtil.toBase64String(jasonCallback.toString().getBytes());
+            respMap.put("callback", base64CallbackBody);
+
+            JSONObject ja1 = JSONObject.fromObject(respMap);
+            // System.out.println(ja1.toString());
+            response.setHeader("Access-Control-Allow-Origin", "*");
+            response.setHeader("Access-Control-Allow-Methods", "GET, POST");
+            response(request, response, ja1.toString());
+
+        } catch (Exception e) {
+            // Assert.fail(e.getMessage());
+            System.out.println(e.getMessage());
+        } finally { 
+            ossClient.shutdown();
+        }
+    }
+```
+
+最后三方服务新增controller，endpoint，bucket, accessId等信息从配置文件中取
+
+返回上传policy（包括文件的放置路径）和签名
+
+```java
+@RequestMapping("thirdParty")
+@RestController
+public class OSSController{
+
+    @Autowired
+    OSS ossClient;
+
+    @Value("${spring.cloud.alicloud.oss.endpoint}")
+    private String endpoint;
+    @Value("${spring.cloud.alicloud.oss.bucket}")
+    private String bucket;
+    @Value("${spring.cloud.alicloud.access-key}")
+    private String accessId;
+
+    /**
+     * 返回给客户端oss上传策略和签名
+     * 让客户端自己去直传
+     * @return
+     */
+    @RequestMapping("/oss/policyAndSig")
+    public CommonResponse getPolicyAndSignature() {
+        // 填写Host名称，格式为https://bucketname.endpoint。
+        String host = "https://" + bucket + "." + endpoint;
+        // 设置上传到OSS文件的前缀，可置空此项。置空后，文件将上传至Bucket的根目录下。
+        String format = new SimpleDateFormat("yyyy-MM-dd").format(new Date());
+        String dir = format + "/";
+        Map<String, String> respMap = null;
+        try {
+            long expireTime = 30;
+            long expireEndTime = System.currentTimeMillis() + expireTime * 1000;
+            Date expiration = new Date(expireEndTime);
+            // PostObject请求最大可支持的文件大小为5 GB，即CONTENT_LENGTH_RANGE为5*1024*1024*1024。
+            PolicyConditions policyConds = new PolicyConditions();
+            policyConds.addConditionItem(PolicyConditions.COND_CONTENT_LENGTH_RANGE, 0, 1048576000);
+            policyConds.addConditionItem(MatchMode.StartWith, PolicyConditions.COND_KEY, dir);
+
+            String postPolicy = ossClient.generatePostPolicy(expiration, policyConds);
+            byte[] binaryData = postPolicy.getBytes("utf-8");
+            String encodedPolicy = BinaryUtil.toBase64String(binaryData);
+            String postSignature = ossClient.calculatePostSignature(postPolicy);
+
+            respMap = new LinkedHashMap<String, String>();
+            respMap.put("accessid", accessId);
+            respMap.put("policy", encodedPolicy);
+            respMap.put("signature", postSignature);
+            respMap.put("dir", dir);
+            respMap.put("host", host);
+            respMap.put("expire", String.valueOf(expireEndTime / 1000));
+        } catch (Exception e) {
+            // Assert.fail(e.getMessage());
+            System.out.println(e.getMessage());
+            return CommonResponse.error("获取OSS policy和签名失败！\n 错误信息：" + e.getMessage());
+        } finally {
+            ossClient.shutdown();
+        }
+        return CommonResponse.success();
+    }
+}
+```
+
+通过网关来访问接口，添加路由规则转发到三方微服务
+
+```yml
+        - id: thirdparty-route
+          uri: lb://eshopblvd-thirdparty
+          predicates:
+            - Path=/api/thirdparty/**
+          filters:
+            - RewritePath=/api/thirdparty/(?<segment>.*),/$\{segment}
+```
+
+接口请访问：[http://127.0.0.1:88/api/thirdparty/oss/policyAndSig](http://127.0.0.1:88/api/thirdparty/oss/policyAndSig)
+
+接口返回正确！
+
+accessid, 加密后的策略，签名，上传文件存储的位置，上传的主机域名，签名过期时间
+
+![](./docs/assets/50.png)
+
+浏览器想要上传文件，先要来这些信息，然后带着这些信息和文件上传给阿里云
+
+【面试】对象存储的方案？详细说说？有哪些亮点
