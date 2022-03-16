@@ -1,5 +1,8 @@
 package com.hatsukoi.eshopblvd.product.entity;
 
+import org.hibernate.validator.constraints.URL;
+
+import javax.validation.constraints.*;
 import java.io.Serializable;
 
 /**
@@ -28,6 +31,7 @@ public class Brand implements Serializable {
      *
      * @mbg.generated
      */
+    @NotBlank(message = "品牌名必须提交")
     private String name;
 
     /**
@@ -39,6 +43,8 @@ public class Brand implements Serializable {
      *
      * @mbg.generated
      */
+    @NotEmpty
+    @URL(message = "logo必须是一个合法地址")
     private String logo;
 
     /**
@@ -61,6 +67,8 @@ public class Brand implements Serializable {
      *
      * @mbg.generated
      */
+    @NotEmpty
+    @Pattern(regexp = "^[a-zA-Z]$", message = "检索首字母必须是一个字母")
     private String firstLetter;
 
     /**
@@ -72,6 +80,8 @@ public class Brand implements Serializable {
      *
      * @mbg.generated
      */
+    @NotNull
+    @Min(value = 0,message = "排序必须大于等于0")
     private Integer sort;
 
     /**

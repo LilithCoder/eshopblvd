@@ -48,6 +48,13 @@ public class CommonResponse extends HashMap<String, Object> {
         return resp;
     }
 
+    public static CommonResponse error(int code, String msg) {
+        CommonResponse resp = new CommonResponse(false);
+        resp.put("code", code);
+        resp.put("msg", msg);
+        return resp;
+    }
+
     /**
      * 获取响应内容
      *
