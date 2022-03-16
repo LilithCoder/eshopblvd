@@ -1238,7 +1238,7 @@ ok~服务启动，网关配置完成✅注册中心里已经有eshopblvd-gateway
 
 - 这部分前端复杂逻辑较多，后端这里注意的点就两个，分类树结构的生成是否有优化空间，mybatis批量更新该如何做？
 
-#### 品牌管理
+#### 品牌查询
 
 - 新增【接口】product/brand/list：根据关键字模糊分页查询品牌
   
@@ -1633,6 +1633,225 @@ accessid, 加密后的策略，签名，上传文件存储的位置，上传的�
 
 浏览器想要上传文件，先要来这些信息，然后带着这些信息和文件上传给阿里云
 
-新增/修改品牌时，点击上传logo，在上传前会发请求给thirdparty/oss/policyAndSig
+新增/修改品牌时，点击上传logo，在上传前会发请求给thirdparty/oss/policyAndSig返回policy和签名，开始执行上传，但是在上传过程中，出现了CORS问题
+
+解决方法就是在阿里云上开启跨域访问
+
+![](./docs/assets/51.png)
+
+ok~成功上传
+
+![](./docs/assets/52.png)
 
 【面试】对象存储的方案？详细说说？有哪些亮点
+
+#### 品牌新增
+
+【接口】新增：product/brand/info/{brandId} 根据brandId获取指定品牌的信息
+
+TODO: 品牌剩余的接口补齐实现
+
+#### JSR303校验
+
+给需要校验的bean加上注解
+
+在Java中提供了一系列的校验方式，它这些校验方式在“javax.validation.constraints”包中，提供了如@Email，@NotNull等注解。
+
+1. 引入依赖
+
+```xml
+ <!-- https://mvnrepository.com/artifact/javax.validation/validation-api -->
+    <dependency>
+      <groupId>javax.validation</groupId>
+      <artifactId>validation-api</artifactId>
+      <version>1.1.0.Final</version>
+    </dependency>
+     <dependency>
+        <groupId>org.hibernate</groupId>
+        <artifactId>hibernate-validator</artifactId>
+        <version>6.1.0.Final</version>
+    </dependency>    
+```
+
+2. 在实体类校验字段上添加校验注解
+
+```java
+@NotBlank
+private String name;
+```
+
+3. 在请求方法中，使用校验注解@Valid，开启校验，如果只是实体类字段加了校验规则没有开启校验那么默认是不生效的
+
+```java
+    @RequestMapping("/save")
+    public R save(@Valid @RequestBody BrandEntity brand){
+		brandService.save(brand);
+        return R.ok();
+    }
+```
+
+【接口】新增：product/brand/insert，品牌新增
+
+测试：发送请求，brand为空，返回结果，会有默认的校验响应
+
+```json
+{
+    "timestamp": "2020-04-29T09:20:46.383+0000",
+    "status": 400,
+    "error": "Bad Request",
+    "errors": [
+        {
+            "codes": [
+                "NotBlank.brandEntity.name",
+                "NotBlank.name",
+                "NotBlank.java.lang.String",
+                "NotBlank"
+            ],
+            "arguments": [
+                {
+                    "codes": [
+                        "brandEntity.name",
+                        "name"
+                    ],
+                    "arguments": null,
+                    "defaultMessage": "name",
+                    "code": "name"
+                }
+            ],
+            "defaultMessage": "不能为空",
+            "objectName": "brandEntity",
+            "field": "name",
+            "rejectedValue": "",
+            "bindingFailure": false,
+            "code": "NotBlank"
+        }
+    ],
+    "message": "Validation failed for object='brandEntity'. Error count: 1",
+    "path": "/product/brand/save"
+}
+```
+
+我们想要自定义错误消息，返回的字段保持只有code, msg, data
+
+在添加注解的时候，修改message：
+
+```java
+	@NotBlank(message = "品牌名必须非空")
+	private String name;
+	
+	@NotEmpty
+    @URL(message = "logo必须是一个合法地址")
+    private String logo;
+	
+	@NotEmpty
+    @Pattern(regexp = "^[a-zA-Z]$", message = "检索首字母必须是一个字母")
+    private String firstLetter;
+	
+	@NotNull
+    @Min(value = 0,message = "排序必须大于等于0")
+    private Integer sort;
+```
+
+给校验的Bean后，紧跟一个BindResult，就可以获取到校验的结果。拿到校验的结果，就可以自定义的封装
+
+```java
+ 	@RequestMapping("/save")
+    public R save(@Valid @RequestBody BrandEntity brand, BindingResult result){
+        if( result.hasErrors()){
+            Map<String,String> map=new HashMap<>();
+            //1.获取错误的校验结果
+            result.getFieldErrors().forEach((item)->{
+                //获取发生错误时的message
+                String message = item.getDefaultMessage();
+                //获取发生错误的字段
+                String field = item.getField();
+                map.put(field,message);
+            });
+            return R.error(400,"提交的数据不合法").put("data",map);
+        }else {
+
+        }
+		brandService.save(brand);
+
+        return R.ok();
+    }
+
+```
+
+这是针对于该请求设置了一个内容校验，如果针对于每个请求都单独进行配置，显然不是太合适，实际上可以统一的对于异常进行处理
+
+统一异常处理: 可以使用SpringMvc所提供的@ControllerAdvice，通过“basePackages”能够说明处理哪些路径下的异常，这个路径的下的controller为了将数据校验的异常抛出去，需要去除bindingresult（原本用作接收异常）
+
+抽取一个异常处理类（业务代码中尽可能抛异常出来，统一用controllerAdvice来感知）
+
+BindingResult接收到的异常信息全部放到返回结果的data中
+
+```java
+@Slf4j
+@RestControllerAdvice(basePackages = "com.hatsukoi.eshopblvd.product.controller")
+public class ExceptionControllerAdvice {
+
+    /**
+     * 数据校验异常处理
+     * 遇到该类型的异常抛出，会走这个处理方法
+     * @param exception
+     * @return
+     */
+    @ExceptionHandler(value = MethodArgumentNotValidException.class)
+    public CommonResponse handleValidException(MethodArgumentNotValidException exception) {
+        log.error("数据校验出现问题{}, 异常类型: {}", exception.getMessage(), exception.getClass());
+        // 接收异常
+        BindingResult bindingResult = exception.getBindingResult();
+        Map<String, String> errMap = new HashMap<>();
+        bindingResult.getFieldErrors().forEach(fieldError -> {
+            errMap.put(fieldError.getField(), fieldError.getDefaultMessage());
+        });
+        return CommonResponse.error(BizCodeEnum.VALID_EXCEPTION.getCode(), BizCodeEnum.VALID_EXCEPTION.getMsg()).setData(errMap);
+    }
+
+    /**
+     * 通用错误异常处理
+     * @param throwable
+     * @return
+     */
+    @ExceptionHandler(value = Throwable.class)
+    public CommonResponse handleException(Throwable throwable) {
+        log.error("错误：", throwable);
+        return CommonResponse.error(BizCodeEnum.UNKOWN_EXCEPTION.getCode(), BizCodeEnum.UNKOWN_EXCEPTION.getMsg());
+    }
+}
+```
+
+上面代码中，针对于错误状态码，是我们进行随意定义的，然而正规开发过程中，错误状态码有着严格的定义规则，如该在项目中我们的错误状态码定义
+
+![image-20200429183748249](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/image-20200429183748249.png)
+
+为了定义这些错误状态码，可以单独定义一个常量类，用来存储这些错误状态码
+
+```java
+public enum BizCodeEnum {
+    UNKOWN_EXCEPTION(10000, "系统未知异常"),
+    VALID_EXCEPTION(10001, "参数格式校验失败");
+
+    private int code;
+    private String msg;
+    BizCodeEnum(int code, String msg) {
+        this.code = code;
+        this.msg = msg;
+    }
+
+    public int getCode() {
+        return code;
+    }
+
+    public String getMsg() {
+        return msg;
+    }
+}
+```
+
+验证下，返回符合预期~
+
+![image-20200429191830967](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/image-20200429191830967.png)
+
+#### 分组校验

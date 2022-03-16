@@ -93,8 +93,28 @@ public class BrandServiceImpl implements BrandService {
         return count;
     }
 
+    /**
+     * 更新品牌的显示状态
+     * @param brand
+     * @return
+     */
     @Override
     public int updateStatus(Brand brand) {
         return brandMapper.updateByPrimaryKeySelective(brand);
+    }
+
+    /**
+     * 根据品牌id查询品牌信息
+     * @param brandId
+     * @return
+     */
+    @Override
+    public Brand getBrandById(Long brandId) {
+        return brandMapper.selectByPrimaryKey(brandId);
+    }
+
+    @Override
+    public void insertBrand(Brand brand) {
+        brandMapper.insert(brand);
     }
 }

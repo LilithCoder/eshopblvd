@@ -35,4 +35,8 @@ public interface BrandService {
     int updateBrand(Brand brand);
 
     int updateStatus(Brand brand);
+
+    Brand getBrandById(Long brandId);
+
+    void insertBrand(Brand brand);
 }

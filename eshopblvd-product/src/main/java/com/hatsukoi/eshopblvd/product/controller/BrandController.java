@@ -5,11 +5,9 @@ import com.hatsukoi.eshopblvd.product.service.BrandService;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -61,5 +59,27 @@ public class BrandController {
         } else {
             return CommonResponse.error();
         }
+    }
+
+    /**
+     * 根据brandId获取指定品牌的信息
+     * @param brandId
+     * @return
+     */
+    @RequestMapping("/info/{brandId}")
+    public CommonResponse brandInfo(@PathVariable("brandId") Long brandId) {
+        Brand brand = brandService.getBrandById(brandId);
+        return CommonResponse.success().setData(brand);
+    }
+
+    /**
+     * 新增一个品牌
+     * @param brand
+     * @return
+     */
+    @RequestMapping("/insert")
+    public CommonResponse insert(@Valid @RequestBody Brand brand) {
+        brandService.insertBrand(brand);
+        return CommonResponse.success();
     }
 }
