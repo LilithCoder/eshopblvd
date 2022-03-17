@@ -4,7 +4,11 @@ import com.hatsukoi.eshopblvd.product.entity.Brand;
 import com.hatsukoi.eshopblvd.product.service.BrandService;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
+import com.hatsukoi.eshopblvd.valid.AddGroup;
+import com.hatsukoi.eshopblvd.valid.UpdateGroup;
+import com.hatsukoi.eshopblvd.valid.UpdateStatusGroup;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
@@ -39,7 +43,7 @@ public class BrandController {
      * @return
      */
     @RequestMapping("/update")
-    public CommonResponse update(@RequestBody Brand brand) {
+    public CommonResponse update(@Validated(UpdateGroup.class) @RequestBody Brand brand) {
         int count = brandService.updateBrand(brand);
         if (count > 0) {
             return CommonResponse.success();
@@ -52,7 +56,7 @@ public class BrandController {
      * 更新品牌显示状态
      */
     @RequestMapping("/update/status")
-    public CommonResponse updateStatus(@RequestBody Brand brand) {
+    public CommonResponse updateStatus(@Validated(UpdateStatusGroup.class) @RequestBody Brand brand) {
         int count = brandService.updateStatus(brand);
         if (count > 0) {
             return CommonResponse.success();
@@ -78,7 +82,7 @@ public class BrandController {
      * @return
      */
     @RequestMapping("/insert")
-    public CommonResponse insert(@Valid @RequestBody Brand brand) {
+    public CommonResponse insert(@Validated({AddGroup.class}) @RequestBody Brand brand) {
         brandService.insertBrand(brand);
         return CommonResponse.success();
     }

@@ -1649,8 +1649,6 @@ ok~成功上传
 
 【接口】新增：product/brand/info/{brandId} 根据brandId获取指定品牌的信息
 
-TODO: 品牌剩余的接口补齐实现
-
 #### JSR303校验
 
 给需要校验的bean加上注解
@@ -1854,4 +1852,133 @@ public enum BizCodeEnum {
 
 ![image-20200429191830967](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/image-20200429191830967.png)
 
-#### 分组校验
+#### JSR303分组校验
+
+目的：完成多场景的复杂校验，给校验注解，标注上groups，指定什么情况下才需要进行校验
+
+例子：新增row的情况下和修改的情况下字段校验的规则可能会不同，新增品牌不需要带上品牌id，修改品牌的时候就必须带上品牌id
+
+给校验注解标注什么情况需要进行校验，common库valid包下添加UpdateGroup和AddGroup接口作标识用
+
+```java
+@NotNull(message = "修改品牌必须指定品牌id", groups = {UpdateGroup.class})
+@Null(message = "新增品牌不需要指定品牌id", groups = {AddGroup.class})
+private Long brandId;
+```
+
+业务方法参数上使用@Validated注解，并在value中给出group接口
+
+@Validated的value方法：指定一个或多个验证组以应用于此注释启动的验证步骤。
+
+```java
+    @RequestMapping("/insert")
+    public CommonResponse insert(@Validated({AddGroup.class}) @RequestBody Brand brand) {
+        brandService.insertBrand(brand);
+        return CommonResponse.success();
+    }
+    @RequestMapping("/update")
+    public CommonResponse update(@Validated(UpdateGroup.class) @RequestBody Brand brand) {
+        int count = brandService.updateBrand(brand);
+        if (count > 0) {
+            return CommonResponse.success();
+        } else {
+            return CommonResponse.error();
+        }
+    }
+```
+
+默认情况下，在分组校验情况下(请求的controller有validated()分组注解)，没有指定分组的校验字段，将不会生效，它只会在不分组的情况下生效，所以只能给这些字段加上分组校验注解
+
+默认没有指定分组的校验注解@NotBlank，在分组校验情况@Validated({AddGroup.class})下不生效，只会在@Validated生效
+
+```java
+    /**
+     * 品牌logo地址
+     */
+    @NotBlank(message = "logo地址不能为空", groups = {AddGroup.class, UpdateGroup.class})
+    @URL(message = "logo必须是一个合法地址")
+    private String logo;
+```
+
+#### JSR303自定义校验
+
+品牌的showStatus字段的值只限于0和1
+
+1. 编写一个自定义的校验注解
+   
+   ```java
+   /**
+    * 自定义校验注解
+    */
+   @Documented
+   @Constraint(validatedBy = { ListValueConstraintValidator.class })
+   @Target({ METHOD, FIELD, ANNOTATION_TYPE, CONSTRUCTOR, PARAMETER, TYPE_USE })
+   @Retention(RUNTIME)
+   public @interface ListValue {
+       String message() default "{com.hatsukoi.eshopblvd.valid.ListValue.message}";
+       Class<?>[] groups() default {};
+       Class<? extends Payload>[] payload() default {};
+       byte[] vals() default {};
+   }
+   ```
+
+2. 编写一个自定义的校验器 ConstraintValidator来校验@ListValue注解标注的字段
+   
+   ```java
+   public class ListValueConstraintValidator implements ConstraintValidator<ListValue, Byte> {
+   
+       private Set<Byte> set;
+   
+       @Override
+       public void initialize(ListValue listValue) {
+           set = new HashSet<>();
+           byte[] vals = listValue.vals();
+           for (byte val: vals) {
+               set.add(val);
+           }
+       }
+   
+       @Override
+       public boolean isValid(Byte aByte, ConstraintValidatorContext constraintValidatorContext) {
+           return set.contains(aByte);
+       }
+   }
+   ```
+
+3. 关联自定义的校验器和自定义的校验注解
+   
+    使用自定义的校验器来校验自定义的校验注解，这里校验注解也可以指定多个校验器
+   
+   ```java
+   @Constraint(validatedBy = { ListValueConstraintValidator.class })
+   ```
+   
+   ```java
+       @NotNull(groups = {AddGroup.class, UpdateStatusGroup.class})
+       @ListValue(vals = {0, 1}, groups = {AddGroup.class})
+       private Byte showStatus;
+   ```
+
+这时候如果数据校验抛出异常，异常处理类controllerAdvice可感知
+
+返回结果样例：
+
+```json
+{
+    "msg": "参数格式校验失败",
+    "code": 10001,
+    "data": {
+        "name": "品牌名必须提交",
+        "logo": "logo地址不能为空",
+        "showStatus": "\"showStatus submitted must be those specific values\""
+    }
+}
+```
+
+
+
+
+
+
+
+**TODO: 品牌剩余的接口补齐实现**
