@@ -540,6 +540,59 @@ https://segmentfault.com/a/1190000038622464
 
 [Mybatis——Example用法 - 简书](https://www.jianshu.com/p/335960d6db6a)
 
+#### Mybatis Generator Example 用法
+
+Example类用于构造复杂的筛选条件
+
+- Criterion: mybatis-generator会为每个字段产生Criterion，是最基本,最底层的Where条件，用于字段级的筛选，例如：字段 in | not in | like | > | >= | < | <= | is not null | is null 等
+
+- Criteria: 包含一个Cretiron的集合,每一个Criteria对象内包含的Cretiron之间是由AND连接的,是逻辑与的关系
+
+- oredCriteria: Example内有一个成员叫oredCriteria,是Criteria的集合,这个集合中的Criteria是由OR连接的，是逻辑或关系
+
+- or()方法，会产生一个新的Criteria对象,添加到oredCriteria中,并返回这个Criteria对象，从而可以链式表达，为其添加Criterion
+
+例子1：**(a=? And b=?) or (a=? And c=?)**
+
+**select * from demo WHERE ( a = ? and b = ? ) or ( a = ? and c = ? )**
+
+```java
+DemoExample example=new DemoExample();  
+ 
+ DemoExample.Criteria criteria1=example.createCriteria();
+ criteria1.andAEqualTo(?).andBEqualTo(?);  
+ 
+ DemoExample.Criteria criteria2=example.createCriteria();
+ criteria2.andAEqualTo(?).andCEqualTo(?);  
+ 
+ example.or(criteria2);
+```
+
+例子2：**(a=? and (b=? or c=?))**
+
+select * from demo WHERE ( a = ? and ( b = ? or c = ? ))
+
+修改DemoExample.java文件，新增方法：
+
+```java
+public Criteria andOrDemo(String value){
+    addCriterion("(b = \""+value+"\" or c = \""+value+"\")");
+    return (Criteria) this;
+}
+```
+
+```java
+DemoExample example=new DemoExample();  
+Criteria criteria = example.createCriteria();
+criteria.andAEqualTo(?).andOrDemo(?);
+
+SqlSession sqlSession = MyBatisUtil.openSession();
+DemoMapper m = sqlSession.getMapper(DemoMapper.class);
+m.countByExample(example);
+```
+
+
+
 ## 验证环境是否搭建成功
 
 ```java
@@ -1245,7 +1298,7 @@ ok~服务启动，网关配置完成✅注册中心里已经有eshopblvd-gateway
   这是一个好的学习example用法的例子
   
   ```java
-      /**
+      /**
        * 分页查询品牌列表
        * 查询条件：关键字为brand_id或是模糊查询brand_name
        * @return
@@ -1267,15 +1320,20 @@ ok~服务启动，网关配置完成✅注册中心里已经有eshopblvd-gateway
               key = params.get("key").toString();
           }
           PageHelper.startPage(pageNum, pageSize);
+          // select * from pms_brand where name like %key% or brandId = key
           BrandExample brandExample = new BrandExample();
+          BrandExample.Criteria criteria1 = brandExample.createCriteria();
           // 关键词模糊查询品牌名
           if (!StringUtils.isEmpty(key)) {
-              brandExample.createCriteria().andNameLike(key);
+              criteria1.andNameLike(key);
           }
           // 关键字匹配brandId
+          BrandExample.Criteria criteria2 = brandExample.createCriteria();
           if (!key.equals("") && StringUtils.isNumeric(key)) {
-              brandExample.or().andBrandIdEqualTo(Long.parseLong(key));
+              criteria2.andBrandIdEqualTo(Long.parseLong(key));
           }
+          brandExample.or(criteria1);
+          brandExample.or(criteria2);
           List<Brand> brandList = brandMapper.selectByExample(brandExample);
           return CommonPageInfo.convertToCommonPage(brandList);
       }
@@ -1778,7 +1836,9 @@ private String name;
 
 这是针对于该请求设置了一个内容校验，如果针对于每个请求都单独进行配置，显然不是太合适，实际上可以统一的对于异常进行处理
 
-统一异常处理: 可以使用SpringMvc所提供的@ControllerAdvice，通过“basePackages”能够说明处理哪些路径下的异常，这个路径的下的controller为了将数据校验的异常抛出去，需要去除bindingresult（原本用作接收异常）
+#### 统一异常处理@ControllerAdvice+@ExceptionHandler
+
+可以使用SpringMvc所提供的@ControllerAdvice，通过“basePackages”能够说明处理哪些路径下的异常，这个路径的下的controller为了将数据校验的异常抛出去，需要去除bindingresult（原本用作接收异常）
 
 抽取一个异常处理类（业务代码中尽可能抛异常出来，统一用controllerAdvice来感知）
 
@@ -1819,6 +1879,8 @@ public class ExceptionControllerAdvice {
     }
 }
 ```
+
+#### 系统错误码
 
 上面代码中，针对于错误状态码，是我们进行随意定义的，然而正规开发过程中，错误状态码有着严格的定义规则，如该在项目中我们的错误状态码定义
 
@@ -1922,7 +1984,7 @@ private Long brandId;
    }
    ```
 
-2. 编写一个自定义的校验器 ConstraintValidator来校验@ListValue注解标注的字段
+2. 编写一个自定义的校验器 ConstraintValidator来校验@ListValue注解标注的字段     
    
    ```java
    public class ListValueConstraintValidator implements ConstraintValidator<ListValue, Byte> {
@@ -1975,10 +2037,93 @@ private Long brandId;
 }
 ```
 
+#### 商品SPU和SKU管理 & 规格参数和销售属性
+
+- SPU:Standard Product Unit(标准化产品单元)
+
+商品信息聚合的最小单位，是一组可复用、易检索的标准化信息的集合，该集合描述了一
+个产品的特性
+
+- SKU:Stock Keeping Unit(库存量单位)
+
+即库存进出计量的基本单元，可以是以件，盒，托盘等为单位。SKU 这是对于大型连锁超市 DC(配送中心)物流管理的一个必要的方法。现在已经被引申为产品统一编号的简称，每
+种产品均对应有唯一的 SKU 号。
+
+例子：
+
+iphoneX 是 SPU、MI 8 是 SPU
+iphoneX 64G 黑曜石 是 SKU
+
+#### 基本属性【规格参数】与销售属性
+
+- 同一个spu下不同的sku共享商品介绍和规格与包装，只是有些商品不一定要用这个分类下全部的属性
+
+- 属性是以三级分类组织起来的
+
+- 规格参数中有些是可以提供检索的
+
+- 规格参数也是基本属性，他们具有自己的分组
+
+- 属性的分组也是以三级分类组织起来的
+
+- 属性名确定的，但是值是每一个商品不同来决定的
+
+##### 数据库设计
+
+pms_attr：属性表(包括了规格参数和销售属性)
+
+pms_attr_group：属性分组表，分组的名字、属于哪个三级分类，比如手机分类下的所有属性分组
+
+pms_attr_attrgroup_relation：属性(包括了规格参数和销售属性)和属性分组的关联关系，一个属性分组关联了哪些属性
+
+![](./docs/assets/56.png)
+
+pms_product_attr_value：商品属性值表：spuid对应的attr_id和属性值
+
+pms_spu_info：spu真正的信息
+
+pms_sku_info: sku的详细信息
+
+pms_sku_images：sku相关的图片
+
+pms_sku_sale_attr_value：sku销售属性值表，存sku的销售属性
+
+![](./docs/assets/55.png)
+
+层级结构
+
+分类：
+
+        分组：
+
+                规格参数（基本属性）
+
+分类：
+
+        规格参数（基本属性）
+
+分类：
+
+        商品属性
+
+spu：
+
+        规格参数（基本属性）
+
+sku：
+
+        商品属性
+
+属性：包含了规格参数（基本属性）和商品属性
+
+##### 新增【接口】：获取分类的属性分组
+
+/product/attrgroup/list/{catelogId}
 
 
 
 
 
 
-**TODO: 品牌剩余的接口补齐实现**
+
+**TODO: 品牌剩余的接口补齐实现 & 后台系统的属性分组功能**

@@ -194,6 +194,10 @@ public class AttrGroupExample {
             criteria.add(new Criterion(condition, value1, value2));
         }
 
+        public Criteria andKeywordFilter(String keyword) {
+            addCriterion("attr_group_id=" + keyword + " or att_group_name like %" + keyword + "%");
+            return (Criteria) this;
+         }
         public Criteria andAttrGroupIdIsNull() {
             addCriterion("attr_group_id is null");
             return (Criteria) this;

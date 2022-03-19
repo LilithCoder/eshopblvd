@@ -3,6 +3,7 @@ package com.hatsukoi.eshopblvd.product.service;
 import com.hatsukoi.eshopblvd.product.entity.Brand;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -39,4 +40,8 @@ public interface BrandService {
     Brand getBrandById(Long brandId);
 
     void insertBrand(Brand brand);
+
+    void deleteByIds(Long[] brandIds);
+
+    List<Brand> getBrandByIds(List<Long> brandIds);
 }

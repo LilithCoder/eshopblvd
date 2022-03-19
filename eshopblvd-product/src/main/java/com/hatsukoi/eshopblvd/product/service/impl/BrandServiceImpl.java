@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -72,15 +73,20 @@ public class BrandServiceImpl implements BrandService {
             key = params.get("key").toString();
         }
         PageHelper.startPage(pageNum, pageSize);
+        // select * from pms_brand where name like %key% or brandId = key
         BrandExample brandExample = new BrandExample();
+        BrandExample.Criteria criteria1 = brandExample.createCriteria();
         // 关键词模糊查询品牌名
         if (!StringUtils.isEmpty(key)) {
-            brandExample.createCriteria().andNameLike(key);
+            criteria1.andNameLike(key);
         }
         // 关键字匹配brandId
+        BrandExample.Criteria criteria2 = brandExample.createCriteria();
         if (!key.equals("") && StringUtils.isNumeric(key)) {
-            brandExample.or().andBrandIdEqualTo(Long.parseLong(key));
+            criteria2.andBrandIdEqualTo(Long.parseLong(key));
         }
+        brandExample.or(criteria1);
+        brandExample.or(criteria2);
         List<Brand> brandList = brandMapper.selectByExample(brandExample);
         return CommonPageInfo.convertToCommonPage(brandList);
     }
@@ -116,5 +122,19 @@ public class BrandServiceImpl implements BrandService {
     @Override
     public void insertBrand(Brand brand) {
         brandMapper.insert(brand);
+    }
+
+    @Override
+    public void deleteByIds(Long[] brandIds) {
+        BrandExample example = new BrandExample();
+        example.createCriteria().andBrandIdIn(Arrays.asList(brandIds));
+        brandMapper.deleteByExample(example);
+    }
+
+    @Override
+    public List<Brand> getBrandByIds(List<Long> brandIds) {
+        BrandExample example = new BrandExample();
+        example.createCriteria().andBrandIdIn(brandIds);
+        return brandMapper.selectByExample(example);
     }
 }

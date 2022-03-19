@@ -26,3 +26,6 @@ dubbo:
     protocol: registry
   protocol:
     port: 20880
+logging:
+  level:
+    com.hatsukoi.eshopblvd: debug
