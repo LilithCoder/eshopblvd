@@ -13,10 +13,12 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * 品牌管理控制器
+ * 对应数据库：pms_brand
  * @author gaoweilin
  * @date 2022/03/14 Mon 10:59 PM
  */
@@ -27,14 +29,20 @@ public class BrandController {
     BrandService brandService;
 
     /**
-     * 根据关键词分页查询所有品牌
-     * @param params
+     * 新增一个品牌
+     * @param brand
      * @return
      */
-    @RequestMapping("/list")
-    public CommonResponse list(@RequestParam Map<String, Object> params) {
-        CommonPageInfo<Brand> queryPage = brandService.queryPageForBrands(params);
-        return CommonResponse.success().setData(queryPage);
+    @RequestMapping("/insert")
+    public CommonResponse insert(@Validated({AddGroup.class}) @RequestBody Brand brand) {
+        brandService.insertBrand(brand);
+        return CommonResponse.success();
+    }
+
+    @RequestMapping("/batchDelete")
+    public CommonResponse batchDelete(@RequestBody Long[] brandIds) {
+        brandService.deleteByIds(brandIds);
+        return CommonResponse.success();
     }
 
     /**
@@ -66,6 +74,17 @@ public class BrandController {
     }
 
     /**
+     * 根据关键词分页查询所有品牌
+     * @param params
+     * @return
+     */
+    @RequestMapping("/list")
+    public CommonResponse list(@RequestParam Map<String, Object> params) {
+        CommonPageInfo<Brand> queryPage = brandService.queryPageForBrands(params);
+        return CommonResponse.success().setData(queryPage);
+    }
+
+    /**
      * 根据brandId获取指定品牌的信息
      * @param brandId
      * @return
@@ -77,13 +96,14 @@ public class BrandController {
     }
 
     /**
-     * 新增一个品牌
-     * @param brand
+     * 根据brandId列表批量查询
+     * @param brandIds
      * @return
      */
-    @RequestMapping("/insert")
-    public CommonResponse insert(@Validated({AddGroup.class}) @RequestBody Brand brand) {
-        brandService.insertBrand(brand);
-        return CommonResponse.success();
+    @RequestMapping("infos")
+    public CommonResponse brandsInfo(@RequestParam("brandIds") List<Long> brandIds) {
+        List<Brand> brands = brandService.getBrandByIds(brandIds);
+        return CommonResponse.success().setData(brands);
     }
+
 }
