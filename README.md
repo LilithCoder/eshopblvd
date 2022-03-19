@@ -542,6 +542,10 @@ https://segmentfault.com/a/1190000038622464
 
 #### Mybatis Generator Example 用法
 
+[MyBatis Generator 生成的example 使用 and or 简单混合查询 - kaixinyufeng - 博客园](https://www.cnblogs.com/kaixinyufeng/p/8329954.html)
+
+https://zhuanlan.zhihu.com/p/42411540
+
 Example类用于构造复杂的筛选条件
 
 - Criterion: mybatis-generator会为每个字段产生Criterion，是最基本,最底层的Where条件，用于字段级的筛选，例如：字段 in | not in | like | > | >= | < | <= | is not null | is null 等
@@ -2119,6 +2123,61 @@ sku：
 ##### 新增【接口】：获取分类的属性分组
 
 /product/attrgroup/list/{catelogId}
+
+在某一分类(categoryId)下，通过关键词匹配属性分组的id或是模糊匹配属性分组的名称来分页查询属性分组的数据
+
+目标sql：
+
+```sql
+select * from pms_attr_group where catelog_id=category and (attr_group_id=keyword or att_group_name like %keyword%)
+```
+
+原本想后半段`(attr_group_id=keyword or att_group_name like %keyword%)`新建一个criteria后在和前面`catelog_id=category`AND操作，但example里不支持多个criteria之间and，所以我们需要在example文件里自行创建andKeywordFilter()，自定义sql语句，这就相当于在原本criteria加入了新的Criterion，至于example中criterion, criteria, oredCriteria的用法参考前文
+
+```java
+        public Criteria andKeywordFilter(String keyword) {
+            addCriterion("(attr_group_id='" + keyword + "' or attr_group_name like '%" + keyword + "%')");
+            return (Criteria) this;
+        }
+```
+
+```java
+    @Override
+    public CommonPageInfo<AttrGroup> queryAttrGroupPage(Map<String, Object> params, Long categoryId) {
+        // 分页参数
+        int pageNum = 1;
+        int pageSize = 10;
+        // 模糊搜索关键词
+        String keyword = "";
+        if (params.get("page") != null) {
+            pageNum = Integer.parseInt(params.get("page").toString());
+        }
+        if (params.get("limit") != null) {
+            pageSize = Integer.parseInt(params.get("limit").toString());
+        }
+        if (params.get("key") != null) {
+            keyword = params.get("key").toString();
+        }
+        PageHelper.startPage(pageNum, pageSize);
+        // select * from pms_attr_group where catelog_id=category and (attr_group_id=keyword or att_group_name like %keyword%)
+        AttrGroupExample example = new AttrGroupExample();
+        AttrGroupExample.Criteria criteria = example.createCriteria();
+        if (categoryId != 0) {
+            criteria.andCatelogIdEqualTo(categoryId);
+        }
+        if (!StringUtils.isEmpty(keyword)) {
+            criteria.andKeywordFilter(keyword);
+        }
+        List<AttrGroup> attrGroups = attrGroupMapper.selectByExample(example);
+        return CommonPageInfo.convertToCommonPage(attrGroups);
+    }
+```
+
+控制台打印的sql符合预期
+
+![](./docs/assets/61.png)
+
+【面试】[sql like 通配符 模糊查询技巧及特殊字符](https://www.cnblogs.com/rrttp/p/9028577.html)、[SQL 通配符 | 菜鸟教程](https://www.runoob.com/sql/sql-wildcards.html)
 
 
 
