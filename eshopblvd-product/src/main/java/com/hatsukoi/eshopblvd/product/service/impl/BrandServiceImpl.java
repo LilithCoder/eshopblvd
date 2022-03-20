@@ -5,6 +5,7 @@ import com.hatsukoi.eshopblvd.product.dao.BrandMapper;
 import com.hatsukoi.eshopblvd.product.entity.Brand;
 import com.hatsukoi.eshopblvd.product.entity.BrandExample;
 import com.hatsukoi.eshopblvd.product.service.BrandService;
+import com.hatsukoi.eshopblvd.product.service.CategoryBrandRelationService;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +25,9 @@ import java.util.Map;
 public class BrandServiceImpl implements BrandService {
     @Autowired
     private BrandMapper brandMapper;
+
+    @Autowired
+    private CategoryBrandRelationService categoryBrandRelationService;
 
     /**
      * 测试用
@@ -78,15 +82,15 @@ public class BrandServiceImpl implements BrandService {
         BrandExample.Criteria criteria1 = brandExample.createCriteria();
         // 关键词模糊查询品牌名
         if (!StringUtils.isEmpty(key)) {
-            criteria1.andNameLike(key);
+            // sql like 通配符
+            criteria1.andNameLike("%" + key + "%");
+            if (StringUtils.isNumeric(key)) {
+                // 关键字匹配brandId
+                BrandExample.Criteria criteria2 = brandExample.createCriteria();
+                criteria2.andBrandIdEqualTo(Long.parseLong(key));
+                brandExample.or(criteria2);
+            }
         }
-        // 关键字匹配brandId
-        BrandExample.Criteria criteria2 = brandExample.createCriteria();
-        if (!key.equals("") && StringUtils.isNumeric(key)) {
-            criteria2.andBrandIdEqualTo(Long.parseLong(key));
-        }
-        brandExample.or(criteria1);
-        brandExample.or(criteria2);
         List<Brand> brandList = brandMapper.selectByExample(brandExample);
         return CommonPageInfo.convertToCommonPage(brandList);
     }
@@ -95,7 +99,11 @@ public class BrandServiceImpl implements BrandService {
     @Override
     public int updateBrand(Brand brand) {
         int count = brandMapper.updateByPrimaryKeySelective(brand);
-        // TODO: 更新其他相关联的表
+        // 保证冗余字段的数据一致性
+        if (!StringUtils.isEmpty(brand.getName())) {
+            categoryBrandRelationService.updateBrand(brand.getBrandId(), brand.getName());
+        }
+        // TODO: 更新其他相关联的表，冗余存储
         return count;
     }
 

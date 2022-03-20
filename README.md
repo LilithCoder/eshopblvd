@@ -562,13 +562,13 @@ Example类用于构造复杂的筛选条件
 
 ```java
 DemoExample example=new DemoExample();  
- 
+
  DemoExample.Criteria criteria1=example.createCriteria();
  criteria1.andAEqualTo(?).andBEqualTo(?);  
- 
+
  DemoExample.Criteria criteria2=example.createCriteria();
  criteria2.andAEqualTo(?).andCEqualTo(?);  
- 
+
  example.or(criteria2);
 ```
 
@@ -594,8 +594,6 @@ SqlSession sqlSession = MyBatisUtil.openSession();
 DemoMapper m = sqlSession.getMapper(DemoMapper.class);
 m.countByExample(example);
 ```
-
-
 
 ## 验证环境是否搭建成功
 
@@ -710,8 +708,7 @@ $ docker pull nacos/nacos-server
 快速启动docker容器
 
 ```shell
-$ docker run --name nacos-server -e MODE=standalone -p 8848:8848 -p 9849:9849 -p 9848:9848 -d nacos/nacos-server:2.0.3
-$ docker update nacos-server --restart=always
+docker run --name nacos -e MODE=standalone -d -p 8848:8848 -p 9848:9848 -p 9849:9849 nacos/nacos-server:2.0.3 --restart=always
 ```
 
 - 注意⚠️：Nacos2.0版本相比1.X新增了gRPC的通信方式，因此需要增加2个端口。新增端口是在配置的主端口(server.port)基础上，进行一定偏移量自动生成。
@@ -1247,7 +1244,7 @@ ok~服务启动，网关配置完成✅注册中心里已经有eshopblvd-gateway
   
   用selectByPrimaryKey来查询分类
   
-  /product/category/detail/{catId} 根据catId去更新指定分类内容：updateByPrimaryKeySelective和updateByPrimaryKey的区别就是，updateByPrimaryKey当某一实体类的属性为null时，mybatis会使用动态sql过滤掉，不更新该字段，selective就是部分更新
+  /product/category/detail/{catId} 根据catId去更新指定分类内容：updateByPrimaryKeySelective和updateByPrimaryKey的区别就是，updateByPrimaryKeySelective当某一实体类的属性为null时，mybatis会使用动态sql过滤掉，不更新该字段，selective就是部分更新
   
   updateByPrimaryKey 将为空的字段在数据库中置为NULL
   
@@ -1295,72 +1292,193 @@ ok~服务启动，网关配置完成✅注册中心里已经有eshopblvd-gateway
 
 - 这部分前端复杂逻辑较多，后端这里注意的点就两个，分类树结构的生成是否有优化空间，mybatis批量更新该如何做？
 
-#### 品牌查询
+#### 品牌管理
 
-- 新增【接口】product/brand/list：根据关键字模糊分页查询品牌
-  
-  这是一个好的学习example用法的例子
-  
-  ```java
-      /**
-       * 分页查询品牌列表
-       * 查询条件：关键字为brand_id或是模糊查询brand_name
-       * @return
-       */
-      @Override
-      public CommonPageInfo<Brand> queryPageForBrands(Map<String, Object> params) {
-          // 分页参数
-          int pageNum = 1;
-          int pageSize = 10;
-          // 模糊搜索关键词
-          String key = "";
-          if (params.get("page") != null) {
-              pageNum = Integer.parseInt(params.get("page").toString());
-          }
-          if (params.get("limit") != null) {
-              pageSize = Integer.parseInt(params.get("limit").toString());
-          }
-          if (params.get("key") != null) {
-              key = params.get("key").toString();
-          }
-          PageHelper.startPage(pageNum, pageSize);
-          // select * from pms_brand where name like %key% or brandId = key
-          BrandExample brandExample = new BrandExample();
-          BrandExample.Criteria criteria1 = brandExample.createCriteria();
-          // 关键词模糊查询品牌名
-          if (!StringUtils.isEmpty(key)) {
-              criteria1.andNameLike(key);
-          }
-          // 关键字匹配brandId
-          BrandExample.Criteria criteria2 = brandExample.createCriteria();
-          if (!key.equals("") && StringUtils.isNumeric(key)) {
-              criteria2.andBrandIdEqualTo(Long.parseLong(key));
-          }
-          brandExample.or(criteria1);
-          brandExample.or(criteria2);
-          List<Brand> brandList = brandMapper.selectByExample(brandExample);
-          return CommonPageInfo.convertToCommonPage(brandList);
-      }
-  ```
-  
-  参考wiki：[mybatis Example Criteria like 模糊查询_我在阴山下-CSDN博客_criteria.andlike](https://blog.csdn.net/ouzhuangzhuang/article/details/82758683)
+##### 新增【接口】：根据关键字模糊分页查询品牌
 
-- 新增【接口】product/brand/update/status
-  
-  更新其showStatus
-  
-  ```java
-      @Override
-      public int updateStatus(Brand brand) {
-          return brandMapper.updateByPrimaryKeySelective(brand);
-      }
-  ```
-  
-  `@RequestParam`为获取get请求query参数
-  
-  `@RequestBody`为获取post请求的请求体
-  
-  ![](./docs/assets/41.png)
+product/brand/list
+
+```sql
+select * from pms_brand where name like %key% or brandId = key
+```
+
+这是一个好的学习example用法的例子
+
+```java
+    /**
+     * 分页查询品牌列表
+     * 查询条件：关键字为brand_id或是模糊查询brand_name
+     * @return
+     */
+    @Override
+    public CommonPageInfo<Brand> queryPageForBrands(Map<String, Object> params) {
+        // 分页参数
+        int pageNum = 1;
+        int pageSize = 10;
+        // 模糊搜索关键词
+        String key = "";
+        if (params.get("page") != null) {
+            pageNum = Integer.parseInt(params.get("page").toString());
+        }
+        if (params.get("limit") != null) {
+            pageSize = Integer.parseInt(params.get("limit").toString());
+        }
+        if (params.get("key") != null) {
+            key = params.get("key").toString();
+        }
+        PageHelper.startPage(pageNum, pageSize);
+        // select * from pms_brand where name like %key% or brandId = key
+        BrandExample brandExample = new BrandExample();
+        BrandExample.Criteria criteria1 = brandExample.createCriteria();
+        // 关键词模糊查询品牌名
+        if (!StringUtils.isEmpty(key)) {
+            // sql like 通配符
+            key = "%" + key + "%";
+            criteria1.andNameLike(key);
+        }
+        // 关键字匹配brandId
+        BrandExample.Criteria criteria2 = brandExample.createCriteria();
+        if (!key.equals("") && StringUtils.isNumeric(key)) {
+            criteria2.andBrandIdEqualTo(Long.parseLong(key));
+        }
+        brandExample.or(criteria2);
+        List<Brand> brandList = brandMapper.selectByExample(brandExample);
+        return CommonPageInfo.convertToCommonPage(brandList);
+    }
+```
+
+<img src="./docs/assets/63.png" title="" alt="" width="638">
+<img src="./docs/assets/64.png" title="" alt="" width="285">
+
+参考wiki：[mybatis Example Criteria like 模糊查询_我在阴山下-CSDN博客_criteria.andlike](https://blog.csdn.net/ouzhuangzhuang/article/details/82758683)
+
+##### 新增【接口】更新品牌的显示状态
+
+product/brand/update/status
+
+更新其showStatus
+
+```java
+    @Override
+    public int updateStatus(Brand brand) {
+        return brandMapper.updateByPrimaryKeySelective(brand);
+    }
+```
+
+`@RequestParam`为获取get请求query参数
+
+`@RequestBody`为获取post请求的请求体
+
+![](./docs/assets/41.png)
+
+##### 新增【接口】：获取品牌关联的分类
+
+/product/categorybrandrelation/catelog/list
+
+[15、获取品牌关联的分类 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/SxysgcEF)
+
+```java
+    @Override
+    public List<CategoryBrandRelation> getCatelogListById(Long brandId) {
+        CategoryBrandRelationExample example = new CategoryBrandRelationExample();
+        example.createCriteria().andBrandIdEqualTo(brandId);
+        List<CategoryBrandRelation> categoryBrandRelations = categoryBrandRelationMapper.selectByExample(example);
+        return categoryBrandRelations;
+    }
+```
+
+##### 新增【接口】：新增品牌与分类关联关系
+
+product/categorybrandrelation/insert
+
+[16、新增品牌与分类关联关系 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/7jWJki5e)
+
+```java
+    @Override
+    public void insertCategoryBrandRelation(CategoryBrandRelation categoryBrandRelation) {
+        Long brandId = categoryBrandRelation.getBrandId();
+        Long catelogId = categoryBrandRelation.getCatelogId();
+        // 查询品牌和分类的名字
+        Brand brand = brandMapper.selectByPrimaryKey(brandId);
+        Category category = categoryMapper.selectByPrimaryKey(catelogId);
+        // 补充查询到信息：品牌和分类的名字
+        categoryBrandRelation.setBrandName(brand.getName());
+        categoryBrandRelation.setCatelogName(category.getName());
+        categoryBrandRelationMapper.insert(categoryBrandRelation);
+    }
+```
+
+![](./docs/assets/66.png)
+
+一个品牌关联多个分类，一个分类下关联多个品牌
+
+【面试】多对多的数据库表如何设计？
+
+多对多一般就会新增一个中间表作冗余存储，比如pms_category_brand_relation，用来保存哪个品牌关联了哪个分类，否则关联查询对数据库性能有非常大的影响，因为表大
+
+如果brand_name和catelog_name在真正的品牌表和分类表更新的话，中间表的数据需要同步
+
+![](./docs/assets/65.png)
+
+品牌更新时更新品牌的时候更新关联表的冗余字段
+
+根据brandId更新品牌名
+
+```java
+    @Transactional
+    @Override
+    public int updateBrand(Brand brand) {
+        int count = brandMapper.updateByPrimaryKeySelective(brand);
+        // 保证冗余字段的数据一致性
+        if (!StringUtils.isEmpty(brand.getName())) {
+            categoryBrandRelationService.updateBrand(brand.getBrandId(), brand.getName());
+        }
+        // TODO: 更新其他相关联的表，冗余存储
+        return count;
+    }
+```
+
+更新分类的时候更新关联表的冗余字段
+
+根据catId更新catelogName
+
+```java
+    /**
+     * 更新分类的时候更新关联表的冗余字段
+     * 根据catId更新catelogName
+     * @param catId
+     * @param name
+     */
+    @Override
+    public void updateCategory(Long catId, String name) {
+        CategoryBrandRelation categoryBrandRelation = new CategoryBrandRelation();
+        categoryBrandRelation.setCatelogId(catId);
+        categoryBrandRelation.setCatelogName(name);
+        CategoryBrandRelationExample example = new CategoryBrandRelationExample();
+        example.createCriteria().andCatelogIdEqualTo(catId);
+        categoryBrandRelationMapper.updateByExampleSelective(categoryBrandRelation, example);
+    }
+```
+
+新增配置类，开始事务管理
+
+```java
+@Configuration
+@EnableTransactionManagement
+@MapperScan("com.hatsukoi.eshopblvd.product")
+public class MybatisConfig {
+}
+```
+
+在刚才那些级联更新的服务都加上事务注解
+
+```java
+    @Override
+    @Transactional
+    public void updateCategory(Category category) {
+        // ...
+    }
+```
 
 #### 文件存储阿里云OSS
 
@@ -1745,7 +1863,7 @@ private String name;
 ```java
     @RequestMapping("/save")
     public R save(@Valid @RequestBody BrandEntity brand){
-		brandService.save(brand);
+        brandService.save(brand);
         return R.ok();
     }
 ```
@@ -1796,18 +1914,18 @@ private String name;
 在添加注解的时候，修改message：
 
 ```java
-	@NotBlank(message = "品牌名必须非空")
-	private String name;
-	
-	@NotEmpty
+    @NotBlank(message = "品牌名必须非空")
+    private String name;
+
+    @NotEmpty
     @URL(message = "logo必须是一个合法地址")
     private String logo;
-	
-	@NotEmpty
+
+    @NotEmpty
     @Pattern(regexp = "^[a-zA-Z]$", message = "检索首字母必须是一个字母")
     private String firstLetter;
-	
-	@NotNull
+
+    @NotNull
     @Min(value = 0,message = "排序必须大于等于0")
     private Integer sort;
 ```
@@ -1815,7 +1933,7 @@ private String name;
 给校验的Bean后，紧跟一个BindResult，就可以获取到校验的结果。拿到校验的结果，就可以自定义的封装
 
 ```java
- 	@RequestMapping("/save")
+     @RequestMapping("/save")
     public R save(@Valid @RequestBody BrandEntity brand, BindingResult result){
         if( result.hasErrors()){
             Map<String,String> map=new HashMap<>();
@@ -1831,11 +1949,10 @@ private String name;
         }else {
 
         }
-		brandService.save(brand);
+        brandService.save(brand);
 
         return R.ok();
     }
-
 ```
 
 这是针对于该请求设置了一个内容校验，如果针对于每个请求都单独进行配置，显然不是太合适，实际上可以统一的对于异常进行处理
@@ -2058,7 +2175,7 @@ private Long brandId;
 iphoneX 是 SPU、MI 8 是 SPU
 iphoneX 64G 黑曜石 是 SKU
 
-#### 基本属性【规格参数】与销售属性
+##### 基本属性【规格参数】与销售属性
 
 - 同一个spu下不同的sku共享商品介绍和规格与包装，只是有些商品不一定要用这个分类下全部的属性
 
@@ -2094,7 +2211,7 @@ pms_sku_sale_attr_value：sku销售属性值表，存sku的销售属性
 
 ![](./docs/assets/55.png)
 
-层级结构
+##### 层级结构
 
 分类：
 
@@ -2179,10 +2296,127 @@ select * from pms_attr_group where catelog_id=category and (attr_group_id=keywor
 
 【面试】[sql like 通配符 模糊查询技巧及特殊字符](https://www.cnblogs.com/rrttp/p/9028577.html)、[SQL 通配符 | 菜鸟教程](https://www.runoob.com/sql/sql-wildcards.html)
 
+由于三级分类的`children`属性为`[]`,因此显示效果如上，为了避免这种效果，我们可以为该字段添加注解 `@JsonInclude(JsonInclude.Include.NON_EMPTY)`,表示当只有该字段不为空时才会返回该属性。
 
+```java
+    /**
+     * 子分类
+     */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private transient List<Category> children;
+```
 
+##### 新增【接口】：获取属性分组详情
 
+/product/attrgroup/info/{attrGroupId}
 
+由于修改时所属分类不能正常回显，因为缺少完整的三级路径，因此我们在`AttrGroupEntity`中添加字段`catelogPath`,并使用递归查找
 
+```java
+private transient Long[] catelogPath;
+```
+
+```java
+    /**
+     * 根据id获取属性分组的详细信息，且返回新增字段catelogPath，含义为该属性分组所属分类的三级分类路径
+     * @param attrGroupId
+     * @return
+     */
+    @RequestMapping("/info/{attrGroupId}")
+    public CommonResponse getAttrGroupInfo(@PathVariable("attrGroupId") Long attrGroupId) {
+        AttrGroup attrGroup = attrGroupService.getAttrGroupById(attrGroupId);
+        Long catelogId = attrGroup.getCatelogId();
+        Long[] catelogPath = categoryService.getCatelogPath(catelogId);
+        attrGroup.setCatelogPath(catelogPath);
+        return CommonResponse.success().setData(attrGroup);
+    }
+
+    /**
+     * 递归查询分类路径
+     * @param catelogId
+     * @return [2, 34, 225]
+     */
+    @Override
+    public Long[] getCatelogPath(Long catelogId) {
+        List<Long> path = new ArrayList<>();
+        findPath(catelogId, path);
+        Collections.reverse(path);
+        return path.toArray(new Long[path.size()]);
+    }
+
+    /**
+     * 递归辅助函数
+     * 查找父分类，记录在path里
+     * @param catelogId
+     * @param path
+     */
+    private void findPath(Long catelogId, List<Long> path) {
+        if (catelogId == 0) return;
+        path.add(catelogId);
+        Category category = categoryMapper.selectByPrimaryKey(catelogId);
+        findPath(category.getParentCid(), path);
+    }
+```
+
+##### 新增【接口】：获取分类规格参数、获取分类销售属性
+
+`/product/attr/base/list/{catelogId}`
+
+`/product/attr/sale/list/{catelogId}`
+
+catelogId不传的话就是获取全部的规格参数
+
+属性表的schema
+
+![](./docs/assets/67.png)
+
+##### 新增【接口】：新增属性
+
+`product/attr/insert`
+
+###### Object类型划分DTO, VO, DAO, PO
+
+当有新增字段时，我们往往会在entity实体类中新建一个字段，并标注数据库中不存在该字段，然而这种方式并不规范
+
+比较规范的做法是，新建一个vo的包，将每种不同的对象，按照它的功能进行了划分。在java中，涉及到了这几种类型
+
+- PO(persistant object) 持久对象
+  
+  PO 就是对应数据库中某个表中的一条记录，就是entity实体类
+
+- TO(Transfer Object) ，数据传输对象
+  
+  不同的应用程序之间传输的对象
+
+- VO(view object) 视图对象
+  
+  通常用于业务层之间的数据传递。接受页面传递来的数据，封装对象，将业务处理完成的对象，封装成页面要用的数据
+
+- DAO(data access object) 数据访问对象
+  
+  是一个 sun 的一个标准 j2ee 设计模式， 这个模式中有个接口就是 DAO ，它负持久
+  层的操作。为业务层提供接口。此对象用于访问数据库。通常和 PO 结合使用， DAO 中包含了各种数据库的操作方法。通过它的方法 , 结合 PO 对数据库进行相关的操作。夹在业务逻辑与数据库资源中间。配合 VO, 提供数据库的 CRUD 操作
+
+现在的情况是，它在保存的时候，只是保存了attr，并没有保存attrgroup，为了解决这个问题，我们新建了一个vo/AttrVo，在原AttrEntity基础上增加了attrGroupId字段，使得保存新增数据的时候，也保存了它们之间的关系
+
+新增属性的时候不仅要保存属性的基本信息，也要保存属性相关的相关表信息
+
+```java
+    @Override
+    @Transactional
+    public void insertAttr(AttrVO attrVO) {
+        // attr表保存基本信息
+        Attr attr = new Attr();
+        BeanUtils.copyProperties(attrVO, attr);
+        attrMapper.insertSelective(attr);
+        // attr_attrgroup_relation保存关联信息
+        if (attrVO.getAttrGroupId() != null) {
+            AttrAttrgroupRelation attrAttrgroupRelation = new AttrAttrgroupRelation();
+            attrAttrgroupRelation.setAttrId(attrVO.getAttrId());
+            attrAttrgroupRelation.setAttrGroupId(attrVO.getAttrGroupId());
+            attrAttrgroupRelationMapper.insert(attrAttrgroupRelation);
+        }
+    }
+```
 
 **TODO: 品牌剩余的接口补齐实现 & 后台系统的属性分组功能**

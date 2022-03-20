@@ -10,6 +10,7 @@ import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -52,5 +53,27 @@ public class AttrGroupServiceImpl implements AttrGroupService {
         }
         List<AttrGroup> attrGroups = attrGroupMapper.selectByExample(example);
         return CommonPageInfo.convertToCommonPage(attrGroups);
+    }
+
+    @Override
+    public void updateAttrGroup(AttrGroup attrGroup) {
+        attrGroupMapper.updateByPrimaryKeySelective(attrGroup);
+    }
+
+    @Override
+    public AttrGroup getAttrGroupById(Long attrGroupId) {
+        return attrGroupMapper.selectByPrimaryKey(attrGroupId);
+    }
+
+    @Override
+    public void insertAttrGroup(AttrGroup attrGroup) {
+        attrGroupMapper.insert(attrGroup);
+    }
+
+    @Override
+    public void deleteAttrGroupByIds(Long[] attrGroupIds) {
+        AttrGroupExample example = new AttrGroupExample();
+        example.createCriteria().andAttrGroupIdIn(Arrays.asList(attrGroupIds));
+        attrGroupMapper.deleteByExample(example);
     }
 }

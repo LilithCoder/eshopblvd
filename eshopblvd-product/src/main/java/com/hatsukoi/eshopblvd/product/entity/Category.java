@@ -1,5 +1,6 @@
 package com.hatsukoi.eshopblvd.product.entity;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -114,6 +115,7 @@ public class Category implements Serializable {
     /**
      * 子分类
      */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     private transient List<Category> children;
 
     /**
