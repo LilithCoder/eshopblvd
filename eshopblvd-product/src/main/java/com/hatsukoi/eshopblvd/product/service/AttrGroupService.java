@@ -11,4 +11,12 @@ import java.util.Map;
  */
 public interface AttrGroupService {
     CommonPageInfo<AttrGroup> queryAttrGroupPage(Map<String, Object> params, Long categoryId);
+
+    void updateAttrGroup(AttrGroup attrGroup);
+
+    AttrGroup getAttrGroupById(Long attrGroupId);
+
+    void insertAttrGroup(AttrGroup attrGroup);
+
+    void deleteAttrGroupByIds(Long[] attrGroupIds);
 }

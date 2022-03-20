@@ -3,11 +3,14 @@ package com.hatsukoi.eshopblvd.product.service.impl;
 import com.hatsukoi.eshopblvd.product.dao.CategoryMapper;
 import com.hatsukoi.eshopblvd.product.entity.Category;
 import com.hatsukoi.eshopblvd.product.entity.CategoryExample;
+import com.hatsukoi.eshopblvd.product.service.CategoryBrandRelationService;
 import com.hatsukoi.eshopblvd.product.service.CategoryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -19,6 +22,9 @@ import java.util.stream.Collectors;
 public class CategoryServiceImpl implements CategoryService {
     @Autowired
     CategoryMapper categoryMapper;
+
+    @Autowired
+    CategoryBrandRelationService categoryBrandRelationService;
 
     /**
      * 查出所有的分类以及其子分类，并且以父子树形结构组装起来
@@ -78,9 +84,12 @@ public class CategoryServiceImpl implements CategoryService {
      * @param category
      */
     @Override
-    public int updateCategory(Category category) {
+    @Transactional
+    public void updateCategory(Category category) {
         // updateByPrimaryKeySelective不同，当某一实体类的属性为null时，mybatis会使用动态sql过滤掉，不更新该字段
-        return categoryMapper.updateByPrimaryKeySelective(category);
+        categoryMapper.updateByPrimaryKeySelective(category);
+        // 级联修改
+        categoryBrandRelationService.updateCategory(category.getCatId(), category.getName());
     }
 
     /**
@@ -89,15 +98,37 @@ public class CategoryServiceImpl implements CategoryService {
      */
     @Transactional
     @Override
-    public int batchUpdateCategories(List<Category> categories) {
+    public void batchUpdateCategories(List<Category> categories) {
         // TODO: 批量更新这些待优化，用xml写sql
         for (Category category: categories) {
-            int count = updateCategory(category);
-            if (count == 0) {
-                return 0;
-            }
+            updateCategory(category);
         }
-        return 1;
+    }
+
+    /**
+     * 递归查询分类路径
+     * @param catelogId
+     * @return [2, 34, 225]
+     */
+    @Override
+    public Long[] getCatelogPath(Long catelogId) {
+        List<Long> path = new ArrayList<>();
+        findPath(catelogId, path);
+        Collections.reverse(path);
+        return path.toArray(new Long[path.size()]);
+    }
+
+    /**
+     * 递归辅助函数
+     * 查找父分类，记录在path里
+     * @param catelogId
+     * @param path
+     */
+    private void findPath(Long catelogId, List<Long> path) {
+        if (catelogId == 0) return;
+        path.add(catelogId);
+        Category category = categoryMapper.selectByPrimaryKey(catelogId);
+        findPath(category.getParentCid(), path);
     }
 
     /**

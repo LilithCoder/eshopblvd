@@ -8,7 +8,9 @@ import com.hatsukoi.eshopblvd.product.service.AttrGroupService;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -16,6 +18,7 @@ import java.util.Map;
  * @author gaoweilin
  * @date 2022/03/19 Sat 9:34 PM
  */
+@Service
 public class AttrGroupServiceImpl implements AttrGroupService {
 
     @Autowired
@@ -39,15 +42,38 @@ public class AttrGroupServiceImpl implements AttrGroupService {
         }
         PageHelper.startPage(pageNum, pageSize);
         // select * from pms_attr_group where catelog_id=category and (attr_group_id=keyword or att_group_name like %keyword%)
+        // %作为通配符替代 0 个或多个字符
         AttrGroupExample example = new AttrGroupExample();
         AttrGroupExample.Criteria criteria = example.createCriteria();
         if (categoryId != 0) {
             criteria.andCatelogIdEqualTo(categoryId);
         }
-        if (StringUtils.isEmpty(keyword)) {
+        if (!StringUtils.isEmpty(keyword)) {
             criteria.andKeywordFilter(keyword);
         }
         List<AttrGroup> attrGroups = attrGroupMapper.selectByExample(example);
         return CommonPageInfo.convertToCommonPage(attrGroups);
+    }
+
+    @Override
+    public void updateAttrGroup(AttrGroup attrGroup) {
+        attrGroupMapper.updateByPrimaryKeySelective(attrGroup);
+    }
+
+    @Override
+    public AttrGroup getAttrGroupById(Long attrGroupId) {
+        return attrGroupMapper.selectByPrimaryKey(attrGroupId);
+    }
+
+    @Override
+    public void insertAttrGroup(AttrGroup attrGroup) {
+        attrGroupMapper.insert(attrGroup);
+    }
+
+    @Override
+    public void deleteAttrGroupByIds(Long[] attrGroupIds) {
+        AttrGroupExample example = new AttrGroupExample();
+        example.createCriteria().andAttrGroupIdIn(Arrays.asList(attrGroupIds));
+        attrGroupMapper.deleteByExample(example);
     }
 }

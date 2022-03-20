@@ -64,12 +64,8 @@ public class CategoryController {
      */
     @RequestMapping("update")
     public CommonResponse updateCategory(@RequestBody Category category) {
-        int count = categoryService.updateCategory(category);
-        if (count > 0) {
-            return CommonResponse.success();
-        } else {
-            return CommonResponse.error();
-        }
+        categoryService.updateCategory(category);
+        return CommonResponse.success();
     }
 
     /**
@@ -79,13 +75,8 @@ public class CategoryController {
      */
     @RequestMapping("batchUpdate")
     public CommonResponse batchUpdateCategories(@RequestBody List<Category> categories) {
-        System.out.println(categories);
-        int count = categoryService.batchUpdateCategories(categories);
-        if (count > 0) {
-            return CommonResponse.success();
-        } else {
-            return CommonResponse.error();
-        }
+        categoryService.batchUpdateCategories(categories);
+        return CommonResponse.success();
     }
 
     /**

@@ -18,7 +18,9 @@ public interface CategoryService {
 
     int insertCategory(Category category);
 
-    int updateCategory(Category category);
+    void updateCategory(Category category);
 
-    int batchUpdateCategories(@Param("categories") List<Category> categories);
+    void batchUpdateCategories(@Param("categories") List<Category> categories);
+
+    Long[] getCatelogPath(Long catelogId);
 }
