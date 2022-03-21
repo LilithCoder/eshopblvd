@@ -62,7 +62,7 @@ public class CategoryController {
      * @param category
      * @return
      */
-    @RequestMapping("update")
+    @RequestMapping("/update")
     public CommonResponse updateCategory(@RequestBody Category category) {
         categoryService.updateCategory(category);
         return CommonResponse.success();
@@ -73,7 +73,7 @@ public class CategoryController {
      * @param categories
      * @return
      */
-    @RequestMapping("batchUpdate")
+    @RequestMapping("/batchUpdate")
     public CommonResponse batchUpdateCategories(@RequestBody List<Category> categories) {
         categoryService.batchUpdateCategories(categories);
         return CommonResponse.success();
