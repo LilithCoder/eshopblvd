@@ -77,7 +77,7 @@ public class BrandServiceImpl implements BrandService {
             key = params.get("key").toString();
         }
         PageHelper.startPage(pageNum, pageSize);
-        // select * from pms_brand where name like %key% or brandId = key
+        // select * from pms_brand where name like %key% or brand_id = key
         BrandExample brandExample = new BrandExample();
         BrandExample.Criteria criteria1 = brandExample.createCriteria();
         // 关键词模糊查询品牌名

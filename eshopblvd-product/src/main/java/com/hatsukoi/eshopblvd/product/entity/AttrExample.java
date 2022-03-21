@@ -763,6 +763,11 @@ public class AttrExample {
             addCriterion("show_desc not between", value1, value2, "showDesc");
             return (Criteria) this;
         }
+
+        public Criteria andKeyQuery(String key) {
+            addCriterion("(attr_name like %" + key + "% or attr_id=" + key + ")");
+            return (Criteria) this;
+        }
     }
 
     /**

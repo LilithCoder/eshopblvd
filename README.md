@@ -1091,6 +1091,12 @@ ok~服务启动，网关配置完成✅注册中心里已经有eshopblvd-gateway
 
 ### 商品服务
 
+#### 数据库设计
+
+![](./docs/assets/product_sql.svg)
+
+![](./docs/assets/product_diagram.svg)
+
 #### 三级分类查询
 
 插入所有的商品分类数据pms_category.sql 
@@ -2235,7 +2241,7 @@ sku：
 
         商品属性
 
-属性：包含了规格参数（基本属性）和商品属性
+属性：包含了规格参数（基本属性）和商品属性，都放在pms_attr表
 
 ##### 新增【接口】：获取分类的属性分组
 
@@ -2358,17 +2364,33 @@ private transient Long[] catelogPath;
     }
 ```
 
+#### 规格参数与销售属性的增删改查
+
 ##### 新增【接口】：获取分类规格参数、获取分类销售属性
 
 `/product/attr/base/list/{catelogId}`
 
 `/product/attr/sale/list/{catelogId}`
 
-catelogId不传的话就是获取全部的规格参数
+catelogId传0的话就是获取全部的规格参数
 
 属性表的schema
 
 ![](./docs/assets/67.png)
+
+* 根据 分类id 匹配属性id或者模糊查询所属的属性，(销售属性、或者基本属性) * @param params  
+* {  
+*  "page": 1（当前页数） *     "limit": 10 （每页展示的记录数） *     "key": "xxx"（查询用关键词） * } * @param attrType 属性类型[0-销售属性，1-基本属性]  
+* @param catelogId 所属分类id：分类id若为0，则查询全部分类下的属性  
+* @return 返回VO字段还包括了所属分类名，所有分组名（如果是规格参数）
+
+```java
+
+```
+
+
+
+
 
 ##### 新增【接口】：新增属性
 
@@ -2412,11 +2434,25 @@ catelogId不传的话就是获取全部的规格参数
         // attr_attrgroup_relation保存关联信息
         if (attrVO.getAttrGroupId() != null) {
             AttrAttrgroupRelation attrAttrgroupRelation = new AttrAttrgroupRelation();
-            attrAttrgroupRelation.setAttrId(attrVO.getAttrId());
+            attrAttrgroupRelation.setAttrId(attr.getAttrId());
             attrAttrgroupRelation.setAttrGroupId(attrVO.getAttrGroupId());
             attrAttrgroupRelationMapper.insert(attrAttrgroupRelation);
         }
     }
 ```
+
+##### 新增【接口】：修改属性
+
+##### 新增【接口】：修改回显时查询属性详情
+
+`/product/attr/info/{attrId}`
+
+[07、查询属性详情 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/7C3tMIuF)
+
+ 
+
+
+
+
 
 **TODO: 品牌剩余的接口补齐实现 & 后台系统的属性分组功能**

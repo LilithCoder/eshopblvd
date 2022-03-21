@@ -2,7 +2,9 @@ package com.hatsukoi.eshopblvd.product.controller;
 
 import com.hatsukoi.eshopblvd.product.entity.Attr;
 import com.hatsukoi.eshopblvd.product.service.AttrService;
+import com.hatsukoi.eshopblvd.product.vo.AttrRespVO;
 import com.hatsukoi.eshopblvd.product.vo.AttrVO;
+import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,22 +32,27 @@ public class AttrController {
      */
     @RequestMapping("/insert")
     public CommonResponse insertAttr(@RequestBody AttrVO attrVO) {
-        log.info("attrVO: {}", attrVO);
         attrService.insertAttr(attrVO);
         return CommonResponse.success();
     }
 
     /**
-     * 根据分类id查询所属的属性，可以只有销售属性、或者基本属性
+     * 根据 分类id 匹配属性id或者模糊查询所属的属性，(销售属性、或者基本属性)
      * @param params
-     * @param attrType 属性类型[0-销售属性，1-基本属性，2-既是销售属性又是基本属性]
-     * @param catelogId
-     * @return
+     * {
+     *     "page": 1（当前页数）
+     *     "limit": 10 （每页展示的记录数）
+     *     "key": "xxx"（查询用关键词）
+     * }
+     * @param attrType 属性类型[0-销售属性，1-基本属性]
+     * @param catelogId 所属分类id：分类id若为0，则查询全部分类下的属性
+     * @return 返回VO字段还包括了所属分类名，所有分组名（如果是规格参数）
      */
     @RequestMapping("/{attrType}/list/{catelogId}")
     public CommonResponse attrList(@RequestParam Map<String, Object> params,
                                    @PathVariable("attrType") String attrType,
                                    @PathVariable("catelogId") Long catelogId) {
-        return CommonResponse.success();
+        CommonPageInfo<AttrRespVO> attrPage = attrService.queryAttrPage(params, attrType, catelogId);
+        return CommonResponse.success().setData(attrPage);
     }
 }
