@@ -5,6 +5,7 @@ import com.hatsukoi.eshopblvd.product.vo.AttrRespVO;
 import com.hatsukoi.eshopblvd.product.vo.AttrVO;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -15,4 +16,14 @@ public interface AttrService {
     void insertAttr(AttrVO attrVO);
 
     CommonPageInfo<AttrRespVO> queryAttrPage(Map<String, Object> params, String attrType, Long catelogId);
+
+    void batchDelete(Long[] attrIds);
+
+    void updateAttr(AttrVO attrVO);
+
+    AttrRespVO getAttrDetail(Long attrId);
+
+    List<Attr> getRelatedAttrsByAttrGroup(Long attrgroupId);
+
+    CommonPageInfo<Attr> getNonRelatedAttrsByAttrGroup(Long attrgroupId, Map<String, Object> params);
 }

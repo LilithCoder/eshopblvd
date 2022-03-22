@@ -1,18 +1,23 @@
 package com.hatsukoi.eshopblvd.product.service.impl;
 
 import com.github.pagehelper.PageHelper;
+import com.hatsukoi.eshopblvd.product.dao.AttrAttrgroupRelationMapper;
 import com.hatsukoi.eshopblvd.product.dao.AttrGroupMapper;
+import com.hatsukoi.eshopblvd.product.entity.AttrAttrgroupRelation;
 import com.hatsukoi.eshopblvd.product.entity.AttrGroup;
 import com.hatsukoi.eshopblvd.product.entity.AttrGroupExample;
 import com.hatsukoi.eshopblvd.product.service.AttrGroupService;
+import com.hatsukoi.eshopblvd.product.vo.AttrAttrGroupRelationVO;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import org.apache.commons.lang.StringUtils;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * @author gaoweilin
@@ -23,6 +28,9 @@ public class AttrGroupServiceImpl implements AttrGroupService {
 
     @Autowired
     AttrGroupMapper attrGroupMapper;
+
+    @Autowired
+    AttrAttrgroupRelationMapper attrAttrgroupRelationMapper;
 
     @Override
     public CommonPageInfo<AttrGroup> queryAttrGroupPage(Map<String, Object> params, Long categoryId) {
@@ -75,5 +83,18 @@ public class AttrGroupServiceImpl implements AttrGroupService {
         AttrGroupExample example = new AttrGroupExample();
         example.createCriteria().andAttrGroupIdIn(Arrays.asList(attrGroupIds));
         attrGroupMapper.deleteByExample(example);
+    }
+
+    @Override
+    public void deleteRelations(AttrAttrGroupRelationVO[] relationVOs) {
+        // 根据VO来构造属性-分组的PO
+        List<AttrAttrgroupRelation> relations = Arrays.asList(relationVOs).stream().map((relation) -> {
+            AttrAttrgroupRelation attrAttrgroupRelation = new AttrAttrgroupRelation();
+            BeanUtils.copyProperties(relation, attrAttrgroupRelation);
+            return attrAttrgroupRelation;
+        }).collect(Collectors.toList());
+        // xml自定义dao批量删除操作
+        // delete from pms_attr_attrgroup_relation where (attr_id=1 AND attr_group_id=1) or (attr_id=1 AND attr_group_id=1) or ...
+        attrAttrgroupRelationMapper.batchDeleteRelations(relations);
     }
 }

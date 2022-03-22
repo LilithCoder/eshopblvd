@@ -9,6 +9,8 @@ spring:
       discovery:
         server-addr: 47.103.8.41:8848
     alicloud:
+      access-key: LTAI5t6ouqnXWKiHQFVkQ197
+      secret-key: nxq2PipTiU6SAHOegQiqMKyfJqD51s
       oss:
         endpoint: oss-cn-shanghai.aliyuncs.com
         bucket: eshopblvd

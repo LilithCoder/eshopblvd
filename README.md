@@ -1300,6 +1300,8 @@ ok~服务启动，网关配置完成✅注册中心里已经有eshopblvd-gateway
 
 #### 品牌管理
 
+**TODO: 品牌剩余的接口补齐实现 & 后台系统的属性分组功能**
+
 ##### 新增【接口】：根据关键字模糊分页查询品牌
 
 product/brand/list
@@ -2385,7 +2387,71 @@ catelogId传0的话就是获取全部的规格参数
 * @return 返回VO字段还包括了所属分类名，所有分组名（如果是规格参数）
 
 ```java
-
+    @Override
+    public CommonPageInfo<AttrRespVO> queryAttrPage(Map<String, Object> params, String attrType, Long catelogId) {
+        // 分页参数
+        int pageNum = 1;
+        int pageSize = 10;
+        // 搜索关键词
+        String key = "";
+        if (params.get("page") != null) {
+            pageNum = Integer.parseInt(params.get("page").toString());
+        }
+        if (params.get("limit") != null) {
+            pageSize = Integer.parseInt(params.get("limit").toString());
+        }
+        if (params.get("key") != null) {
+            key = params.get("key").toString();
+        }
+        PageHelper.startPage(pageNum, pageSize);
+        // select * from pms_attr where (attr_type=attrType and catelog_id=catelogId and (attr_name like %key% or attr_id=key))
+        AttrExample attrExample = new AttrExample();
+        AttrExample.Criteria criteria = attrExample.createCriteria();
+        // 根据attrType进行查询：0销售属性, 1规格参数
+        if (!StringUtils.isEmpty(attrType)) {
+            byte attrTypeCode = (byte) (ProductConstant.AttrEnum.ATTR_TYPE_BASE.getMsg().equalsIgnoreCase(attrType)
+                                ? ProductConstant.AttrEnum.ATTR_TYPE_BASE.getCode()
+                                : ProductConstant.AttrEnum.ATTR_TYPE_SALE.getCode());
+            criteria.andAttrTypeEqualTo(attrTypeCode);
+        }
+        // 根据所选分类来查询，如果分类id为0，那么就查询全部分类下的属性
+        if (catelogId != 0) {
+            criteria.andCatelogIdEqualTo(catelogId);
+        }
+        // 搜索查询：匹配属性id或者模糊匹配属性名
+        if (!StringUtils.isEmpty(key)) {
+            criteria.andKeyQuery(key);
+        }
+        // 根据种种条件查询获取属性列表
+        List<Attr> attrs = attrMapper.selectByExample(attrExample);
+        List<AttrRespVO> attrRespVOs = attrs.stream().map(attr -> {
+            AttrRespVO attrRespVO = new AttrRespVO();
+            BeanUtils.copyProperties(attr, attrRespVO);
+            // 从分类表中查询分类名并设置
+            Category category = categoryMapper.selectByPrimaryKey(attr.getCatelogId());
+            attrRespVO.setCatelogName(category.getName());
+            // 只有是规格参数才查询并设置属性分组名，因为商品属性没有属性分组
+            if (ProductConstant.AttrEnum.ATTR_TYPE_BASE.getMsg().equalsIgnoreCase(attrType)) {
+                AttrAttrgroupRelationExample attrAttrgroupRelationExample = new AttrAttrgroupRelationExample();
+                attrAttrgroupRelationExample.createCriteria().andAttrIdEqualTo(attr.getAttrId());
+                // 从属性-属性分组关联表中查出属性id对应的属性分组id
+                List<AttrAttrgroupRelation> attrAttrgroupRelations = attrAttrgroupRelationMapper.selectByExample(attrAttrgroupRelationExample);
+                // 如果这个规格参数有对应的分组的话
+                if (attrAttrgroupRelations != null &&
+                        attrAttrgroupRelations.size() == 1 &&
+                        attrAttrgroupRelations.get(0).getAttrGroupId() != null) {
+                    // 再从属性分组关联表中根据属性分组id查出属性分组名
+                    Long attrGroupId = attrAttrgroupRelations.get(0).getAttrGroupId();
+                    AttrGroup attrGroup = attrGroupMapper.selectByPrimaryKey(attrGroupId);
+                    // 设置分组名
+                    attrRespVO.setGroupName(attrGroup.getAttrGroupName());
+                }
+            }
+            return attrRespVO;
+        }).collect(Collectors.toList());
+        return CommonPageInfo.convertToCommonPage(attrRespVOs);
+    }
+}
 ```
 
 
@@ -2443,16 +2509,228 @@ catelogId传0的话就是获取全部的规格参数
 
 ##### 新增【接口】：修改属性
 
+`/product/attr/update`
+
+[08、修改属性 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/10r1cuqn)
+
+```java
+    @Override
+    public void updateAttr(AttrVO attrVO) {
+        // 修改更新属性的基本信息
+        Attr attr = new Attr();
+        BeanUtils.copyProperties(attrVO, attr);
+        attrMapper.updateByPrimaryKeySelective(attr);
+
+        // 当属性分组不为空时，说明更新的是规则参数，则需要更新属性-分组关联表
+        if (attrVO.getAttrGroupId() != null) {
+            AttrAttrgroupRelation attrAttrgroupRelation = new AttrAttrgroupRelation();
+            attrAttrgroupRelation.setAttrId(attrVO.getAttrId());
+            attrAttrgroupRelation.setAttrGroupId(attrVO.getAttrGroupId());
+            // 查询关联表中是否属性已经有了关联的分组
+            AttrAttrgroupRelationExample attrAttrgroupRelationExample = new AttrAttrgroupRelationExample();
+            attrAttrgroupRelationExample.createCriteria().andAttrIdEqualTo(attrVO.getAttrId());
+            List<AttrAttrgroupRelation> attrAttrgroupRelations = attrAttrgroupRelationMapper.selectByExample(attrAttrgroupRelationExample);
+            // 在关联表中已有该属性分组数据时进行更新，否则插入新数据
+            if (attrAttrgroupRelations.size() > 0) {
+                attrAttrgroupRelationMapper.updateByExampleSelective(attrAttrgroupRelation, attrAttrgroupRelationExample);
+            } else {
+                attrAttrgroupRelationMapper.insertSelective(attrAttrgroupRelation);
+            }
+        }
+    }
+```
+
 ##### 新增【接口】：修改回显时查询属性详情
 
 `/product/attr/info/{attrId}`
 
 [07、查询属性详情 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/7C3tMIuF)
 
- 
+获取某个属性的详情信息（作为修改属性详情时回显用）
+
+```java
+    @Override
+    public AttrRespVO getAttrDetail(Long attrId) {
+        // 查询这个属性的基本信息
+        Attr attr = attrMapper.selectByPrimaryKey(attrId);
+        AttrRespVO attrRespVO = new AttrRespVO();
+        BeanUtils.copyProperties(attr, attrRespVO);
+        // 返回的数据除了基本信息还需要分类三级路径、分类名和分组名（如果是规格参数）
+        AttrAttrgroupRelationExample attrAttrgroupRelationExample = new AttrAttrgroupRelationExample();
+        attrAttrgroupRelationExample.createCriteria().andAttrIdEqualTo(attrId);
+        List<AttrAttrgroupRelation> attrAttrgroupRelations = attrAttrgroupRelationMapper.selectByExample(attrAttrgroupRelationExample);
+        // 如果分组id不为空，通过分组表查出分组名
+        if (attrAttrgroupRelations != null &&
+                attrAttrgroupRelations.get(0) != null &&
+                attrAttrgroupRelations.get(0).getAttrGroupId() != null) {
+            Long attrGroupId = attrAttrgroupRelations.get(0).getAttrGroupId();
+            AttrGroup attrGroup = attrGroupMapper.selectByPrimaryKey(attrGroupId);
+            attrRespVO.setGroupName(attrGroup.getAttrGroupName());
+            attrRespVO.setAttrGroupId(attrGroupId);
+        }
+
+        // 查询并设置分类名
+        Category category = categoryMapper.selectByPrimaryKey(attr.getCatelogId());
+        attrRespVO.setCatelogName(category.getName());
+
+        // 查询并设置分类名
+        Long[] catelogPath = categoryService.getCatelogPath(attr.getCatelogId());
+        attrRespVO.setCatelogPath(catelogPath);
+        return attrRespVO;
+    }
+```
+
+#### 分组与规格参数关联
+
+##### 新增【接口】：获取属性分组的关联的所有属性
+
+`/product/attrgroup/{attrgroupId}/attr/relation`
+
+[10、获取属性分组的关联的所有属性 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/LnjzZHPj)
+
+```java
+    /**
+     * 根据分组id来查找与之相关的规格参数
+     * @param attrgroupId
+     * @return
+     */
+    @Override
+    public List<Attr> getRelatedAttrsByAttrGroup(Long attrgroupId) {
+        // 首先根据关联表查找所有跟这个分组有关的基本属性
+        AttrAttrgroupRelationExample attrAttrgroupRelationExample = new AttrAttrgroupRelationExample();
+        attrAttrgroupRelationExample.createCriteria().andAttrGroupIdEqualTo(attrgroupId);
+        List<AttrAttrgroupRelation> attrAttrgroupRelations = attrAttrgroupRelationMapper.selectByExample(attrAttrgroupRelationExample);
+
+        // 如果没有关联的属性，就返回null
+        if (attrAttrgroupRelations == null || attrAttrgroupRelations.size() == 0) {
+            return null;
+        }
+
+        // 如果有的话，则根据这些相关的属性的id去查询所有的基本属性列表，并返回
+        List<Long> attrIds = attrAttrgroupRelations.stream().map((relation) -> {
+            return relation.getAttrId();
+        }).collect(Collectors.toList());
+        AttrExample attrExample = new AttrExample();
+        attrExample.createCriteria().andAttrIdIn(attrIds);
+        List<Attr> attrs = attrMapper.selectByExample(attrExample);
+
+        return attrs;
+    }
+```
 
 
 
+##### 新增【接口】：删除属性与分组的关联关系
+
+`/product/attrgroup/attr/relation/delete`
+
+[12、删除属性与分组的关联关系 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/qn7A2Fht)
+
+批量删除
+
+```sql
+delete from pms_attr_attrgroup_relation where (attr_id=1 AND attr_group_id=1) or
+(attr_id=1 AND attr_group_id=1) or ...
+```
+
+```java
+    @Override
+    public void deleteRelations(AttrAttrGroupRelationVO[] relationVOs) {
+        // 根据VO来构造属性-分组的PO
+        List<AttrAttrgroupRelation> relations = Arrays.asList(relationVOs).stream().map((relation) -> {
+            AttrAttrgroupRelation attrAttrgroupRelation = new AttrAttrgroupRelation();
+            BeanUtils.copyProperties(relation, attrAttrgroupRelation);
+            return attrAttrgroupRelation;
+        }).collect(Collectors.toList());
+        // xml自定义dao批量删除操作
+        // delete from pms_attr_attrgroup_relation where (attr_id=1 AND attr_group_id=1) or (attr_id=1 AND attr_group_id=1) or ...
+        attrAttrgroupRelationMapper.batchDeleteRelations(relations);
+    }
+```
+
+```xml
+  <delete id="batchDeleteRelations">
+    DELETE FROM `pms_attr_attrgroup_relation` WHERE
+    <foreach collection="relations" separator=" OR ">
+        (attr_id=#{relations.attrId} AND attr_group_id=#{relations.attrGroupId})
+    </foreach>
+  </delete>
+```
 
 
-**TODO: 品牌剩余的接口补齐实现 & 后台系统的属性分组功能**
+
+##### 新增【接口】：获取属性分组没有关联的其他属性
+
+获取属性分组里面还没有关联的本分类里面的其他基本属性，方便添加新的关联
+
+`/product/attrgroup/{attrgroupId}/noattr/relation`
+
+[13、获取属性分组没有关联的其他属性 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/d3EezLdO)
+
+```java
+    /**
+     * 获取当前分组在所属分类下还没有关联的所有基本属性
+     * @param attrgroupId
+     * @param params
+     * @return
+     */
+    @Override
+    public CommonPageInfo<Attr> getNonRelatedAttrsByAttrGroup(Long attrgroupId, Map<String, Object> params) {
+        // 分页参数
+        int pageNum = 1;
+        int pageSize = 10;
+        // 模糊搜索关键词
+        String key = "";
+        if (params.get("page") != null) {
+            pageNum = Integer.parseInt(params.get("page").toString());
+        }
+        if (params.get("limit") != null) {
+            pageSize = Integer.parseInt(params.get("limit").toString());
+        }
+        if (params.get("key") != null) {
+            key = params.get("key").toString();
+        }
+        PageHelper.startPage(pageNum, pageSize);
+
+        // 获取分组所属当前分类id（分组表）
+        AttrGroup attrGroup = attrGroupMapper.selectByPrimaryKey(attrgroupId);
+        Long catelogId = attrGroup.getCatelogId();
+
+        // 获取当前分类下所有的分组的id（分组表）
+        AttrGroupExample example = new AttrGroupExample();
+        example.createCriteria().andCatelogIdEqualTo(catelogId);
+        List<AttrGroup> attrGroups = attrGroupMapper.selectByExample(example);
+        List<Long> attrGroupIds = attrGroups.stream().map((item) -> {
+            return item.getAttrGroupId();
+        }).collect(Collectors.toList());
+
+        // 获取这些分组的已经关联的所有基本属性（属性-分组表）
+        AttrAttrgroupRelationExample attrAttrgroupRelationExample = new AttrAttrgroupRelationExample();
+        attrAttrgroupRelationExample.createCriteria().andAttrGroupIdIn(attrGroupIds);
+        List<AttrAttrgroupRelation> relations = attrAttrgroupRelationMapper.selectByExample(attrAttrgroupRelationExample);
+        List<Long> attrIds = relations.stream().map((relation) -> {
+            return relation.getAttrId();
+        }).collect(Collectors.toList());
+
+        // 从当前分类的下所有基本属性中移除上述查到属性，且根据关键词来匹配属性id和模糊匹配属性名（属性表）
+        // select * from pms_attr
+        // where
+        // (catelog_id=catelogId) and
+        // (attr_id not in attrIds) and
+        // (attr_type=1) and
+        // (attr_id=#{key} or attr_name like %#{key}%)
+        AttrExample attrExample = new AttrExample();
+        AttrExample.Criteria criteria = attrExample.createCriteria();
+        criteria.andCatelogIdEqualTo(catelogId)
+                .andAttrTypeEqualTo((byte) ProductConstant.AttrEnum.ATTR_TYPE_BASE.getCode());
+        if (attrIds != null && attrIds.size() > 0) {
+            criteria.andAttrIdNotIn(attrIds);
+        }
+        if (!StringUtils.isEmpty(key)) {
+            criteria.andKeyQuery(key);
+        }
+        List<Attr> attrs = attrMapper.selectByExample(attrExample);
+        // 封装成分页数据并返回
+        return CommonPageInfo.convertToCommonPage(attrs);
+    }
+```
