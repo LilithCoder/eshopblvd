@@ -1,14 +1,18 @@
 package com.hatsukoi.eshopblvd.product.controller;
 
+import com.hatsukoi.eshopblvd.product.entity.Attr;
 import com.hatsukoi.eshopblvd.product.entity.AttrGroup;
 import com.hatsukoi.eshopblvd.product.service.AttrGroupService;
+import com.hatsukoi.eshopblvd.product.service.AttrService;
 import com.hatsukoi.eshopblvd.product.service.CategoryService;
+import com.hatsukoi.eshopblvd.product.vo.AttrAttrGroupRelationVO;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -26,6 +30,9 @@ public class AttrGroupController {
 
     @Autowired
     CategoryService categoryService;
+
+    @Autowired
+    AttrService attrService;
 
     /**
      * 新增属性分组
@@ -46,6 +53,17 @@ public class AttrGroupController {
     @RequestMapping("/batchDelete")
     public CommonResponse delete(@RequestBody Long[] attrGroupIds) {
         attrGroupService.deleteAttrGroupByIds(attrGroupIds);
+        return CommonResponse.success();
+    }
+
+    /**
+     * 批量删除分组和基础属性的关联
+     * @param relationVOs
+     * @return
+     */
+    @PostMapping("/attr/relation/delete")
+    public CommonResponse deleteRelations(@RequestBody AttrAttrGroupRelationVO[] relationVOs) {
+        attrGroupService.deleteRelations(relationVOs);
         return CommonResponse.success();
     }
 
@@ -89,6 +107,29 @@ public class AttrGroupController {
         Long[] catelogPath = categoryService.getCatelogPath(catelogId);
         attrGroup.setCatelogPath(catelogPath);
         return CommonResponse.success().setData(attrGroup);
+    }
+
+    /**
+     * 获取指定分组关联的所有属性，根据分组id来查找与之相关的规格参数
+     * @param attrgroupId
+     * @return
+     */
+    @GetMapping("/{attrgroupId}/attr/relation")
+    public CommonResponse getAllRelatedAttrs(@PathVariable("attrgroupId") Long attrgroupId) {
+        List<Attr> attrs = attrService.getRelatedAttrsByAttrGroup(attrgroupId);
+        return CommonResponse.success().setData(attrs);
+    }
+
+    /**
+     * 获取属性分组里面还没有关联的本分类里面的其他基本属性，方便添加新的关联
+     * @param attrgroupId
+     * @return
+     */
+    @GetMapping("/{attrgroupId}/noattr/relation`")
+    public CommonResponse getAllNonRelatedAttrs(@PathVariable("attrgroupId") Long attrgroupId,
+                                                @RequestParam Map<String, Object> params) {
+        CommonPageInfo<Attr> queryPage = attrService.getNonRelatedAttrsByAttrGroup(attrgroupId, params);
+        return CommonResponse.success().setData(queryPage);
     }
 
 }

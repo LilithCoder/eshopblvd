@@ -1,6 +1,7 @@
 package com.hatsukoi.eshopblvd.product.service;
 
 import com.hatsukoi.eshopblvd.product.entity.AttrGroup;
+import com.hatsukoi.eshopblvd.product.vo.AttrAttrGroupRelationVO;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 
 import java.util.Map;
@@ -19,4 +20,6 @@ public interface AttrGroupService {
     void insertAttrGroup(AttrGroup attrGroup);
 
     void deleteAttrGroupByIds(Long[] attrGroupIds);
+
+    void deleteRelations(AttrAttrGroupRelationVO[] relationVOs);
 }

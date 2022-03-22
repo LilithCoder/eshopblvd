@@ -37,6 +37,28 @@ public class AttrController {
     }
 
     /**
+     * 根据删除属性id列表进行批量删除
+     * @param attrIds
+     * @return
+     */
+    @RequestMapping("/delete")
+    public CommonResponse deleteByIds(@RequestBody Long[] attrIds) {
+        attrService.batchDelete(attrIds);
+        return CommonResponse.success();
+    }
+
+    /**
+     * 更新某个属性
+     * @param attrVO
+     * @return
+     */
+    @RequestMapping("/update")
+    public CommonResponse update(@RequestBody AttrVO attrVO) {
+        attrService.updateAttr(attrVO);
+        return CommonResponse.success();
+    }
+
+    /**
      * 根据 分类id 匹配属性id或者模糊查询所属的属性，(销售属性、或者基本属性)
      * @param params
      * {
@@ -54,5 +76,16 @@ public class AttrController {
                                    @PathVariable("catelogId") Long catelogId) {
         CommonPageInfo<AttrRespVO> attrPage = attrService.queryAttrPage(params, attrType, catelogId);
         return CommonResponse.success().setData(attrPage);
+    }
+
+    /**
+     * 获取某个属性的详情信息（作为修改属性详情时回显用）
+     * @param attrId
+     * @return
+     */
+    @RequestMapping("/info/{attrId}")
+    public CommonResponse attrDetail(@PathVariable("attrId") Long attrId) {
+        AttrRespVO attrRespVO = attrService.getAttrDetail(attrId);
+        return CommonResponse.success().setData(attrRespVO);
     }
 }

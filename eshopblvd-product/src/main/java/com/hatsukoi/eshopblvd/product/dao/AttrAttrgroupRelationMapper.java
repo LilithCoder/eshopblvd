@@ -93,4 +93,6 @@ public interface AttrAttrgroupRelationMapper {
      * @mbg.generated
      */
     int updateByPrimaryKey(AttrAttrgroupRelation record);
+
+    void batchDeleteRelations(@Param("relations") List<AttrAttrgroupRelation> relations);
 }

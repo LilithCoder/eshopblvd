@@ -130,6 +130,12 @@
       <include refid="Example_Where_Clause" />
     </if>
   </delete>
+  <delete id="batchDeleteRelations">
+    DELETE FROM `pms_attr_attrgroup_relation` WHERE
+    <foreach collection="relations" separator=" OR ">
+        (attr_id=#{relations.attrId} AND attr_group_id=#{relations.attrGroupId})
+    </foreach>
+  </delete>
   <insert id="insert" parameterType="com.hatsukoi.eshopblvd.product.entity.AttrAttrgroupRelation">
     <!--
       WARNING - @mbg.generated
