@@ -2734,3 +2734,85 @@ delete from pms_attr_attrgroup_relation where (attr_id=1 AND attr_group_id=1) or
         return CommonPageInfo.convertToCommonPage(attrs);
     }
 ```
+
+##### 新增【接口】：# 添加属性与分组关联关系
+
+`/product/attrgroup/attr/relation`
+
+[11、添加属性与分组关联关系 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/VhgnaedC)
+
+请求参数，我们需要批量保存这些数据
+
+```json
+[{
+  "attrGroupId": 0, //分组id
+  "attrId": 0, //属性id
+}]
+```
+
+```java
+    /**
+     * 批量插入属性-分组关系
+     * @param relationVOs
+     * @return
+     */
+    @PostMapping("/attr/relation")
+    public CommonResponse insertRelations(@RequestBody List<AttrAttrGroupRelationVO> relationVOs) {
+        attrAttrgroupRelationService.batchInsertRelations(relationVOs);
+        return CommonResponse.success();
+    }
+
+```
+
+```xml
+  <insert id="batchInsert">
+    INSERT INTO `pms_attr_attrgroup_relation` (id, attr_id, attr_group_id, attr_sort)
+    values
+    <foreach collection="relations" separator=",">
+      (#{relations.id}, #{relations.attrId}, #{relations.attr_group_id}, #{relations.attr_sort})
+    </foreach>
+  </insert>
+```
+
+#### 商品发布
+
+##### 新增【接口】：# 获取所有会员等级
+
+`/member/memberlevel/list`
+
+[01、获取所有会员等级 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/jCFganpf)
+
+配置会员系统的路由关系先
+
+```yml
+        - id: member_route
+          uri: lb://eshopblvd-member
+          predicates:
+            - Path=/api/member/**
+          filters:
+            - RewritePath=/api/(?<segment>.*),/$\{segment}
+```
+
+```java
+    @Override
+    public CommonPageInfo<MemberLevel> queryMemberLevelPage(Map<String, Object> params) {
+        // 分页参数
+        int pageNum = 1;
+        int pageSize = 10;
+        if (params.get("page") != null) {
+            pageNum = Integer.parseInt(params.get("page").toString());
+        }
+        if (params.get("limit") != null) {
+            pageSize = Integer.parseInt(params.get("limit").toString());
+        }
+        PageHelper.startPage(pageNum, pageSize);
+        List<MemberLevel> memberLevels = memberLevelMapper.selectByExample(new MemberLevelExample());
+        return CommonPageInfo.convertToCommonPage(memberLevels);
+    }
+```
+
+##### 新增【接口】：# 获取分类关联的品牌
+
+`/product/categorybrandrelation/brands/list`
+
+[14、获取分类关联的品牌 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/HgVjlzWV)

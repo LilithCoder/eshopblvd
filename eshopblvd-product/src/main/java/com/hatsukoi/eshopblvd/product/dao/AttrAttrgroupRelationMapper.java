@@ -95,4 +95,6 @@ public interface AttrAttrgroupRelationMapper {
     int updateByPrimaryKey(AttrAttrgroupRelation record);
 
     void batchDeleteRelations(@Param("relations") List<AttrAttrgroupRelation> relations);
+
+    void batchInsert(@Param("relations") List<AttrAttrgroupRelation> relations);
 }
