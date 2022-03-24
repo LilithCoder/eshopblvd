@@ -2816,3 +2816,34 @@ delete from pms_attr_attrgroup_relation where (attr_id=1 AND attr_group_id=1) or
 `/product/categorybrandrelation/brands/list`
 
 [14、获取分类关联的品牌 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/HgVjlzWV)
+
+Controller：处理清楚、接收、校验数据
+
+Service：接收controller的数据，进行业务处理
+
+Controller接收Service处理完的数据，封装页面指定的VO
+
+```java
+    @Override
+    public List<Brand> getBrandListByCatId(Long catId) {
+        CategoryBrandRelationExample example = new CategoryBrandRelationExample();
+        example.createCriteria().andCatelogIdEqualTo(catId);
+        List<CategoryBrandRelation> categoryBrandRelations = categoryBrandRelationMapper.selectByExample(example);
+        List<Brand> brands = categoryBrandRelations.stream().map((relation) -> {
+            Long brandId = relation.getBrandId();
+            Brand brand = brandMapper.selectByPrimaryKey(brandId);
+            return brand;
+        }).collect(Collectors.toList());
+        return brands;
+    }
+```
+
+##### 新增【接口】：# 获取分类下所有分组&关联属性
+
+`/product/attrgroup/{catelogId}/withattr`
+
+[17、获取分类下所有分组&amp;关联属性 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/6JM6txHf)
+
+```java
+
+```

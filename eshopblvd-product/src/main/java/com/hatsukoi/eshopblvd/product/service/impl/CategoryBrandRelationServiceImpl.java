@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * @author gaoweilin
@@ -28,6 +29,19 @@ public class CategoryBrandRelationServiceImpl implements CategoryBrandRelationSe
 
     @Autowired
     CategoryMapper categoryMapper;
+
+    @Override
+    public List<Brand> getBrandListByCatId(Long catId) {
+        CategoryBrandRelationExample example = new CategoryBrandRelationExample();
+        example.createCriteria().andCatelogIdEqualTo(catId);
+        List<CategoryBrandRelation> categoryBrandRelations = categoryBrandRelationMapper.selectByExample(example);
+        List<Brand> brands = categoryBrandRelations.stream().map((relation) -> {
+            Long brandId = relation.getBrandId();
+            Brand brand = brandMapper.selectByPrimaryKey(brandId);
+            return brand;
+        }).collect(Collectors.toList());
+        return brands;
+    }
 
     @Override
     public List<CategoryBrandRelation> getCatelogListById(Long brandId) {

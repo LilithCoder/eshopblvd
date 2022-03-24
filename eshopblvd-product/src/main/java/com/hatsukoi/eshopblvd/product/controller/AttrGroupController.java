@@ -8,6 +8,7 @@ import com.hatsukoi.eshopblvd.product.service.AttrGroupService;
 import com.hatsukoi.eshopblvd.product.service.AttrService;
 import com.hatsukoi.eshopblvd.product.service.CategoryService;
 import com.hatsukoi.eshopblvd.product.vo.AttrAttrGroupRelationVO;
+import com.hatsukoi.eshopblvd.product.vo.AttrGroupWithAttrsVO;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -146,6 +147,17 @@ public class AttrGroupController {
                                                 @RequestParam Map<String, Object> params) {
         CommonPageInfo<Attr> queryPage = attrService.getNonRelatedAttrsByAttrGroup(attrgroupId, params);
         return CommonResponse.success().setData(queryPage);
+    }
+
+    /**
+     * 获取指定分类下的所有分组以及对应的所有的规格参数
+     * @param catelogId
+     * @return
+     */
+    @GetMapping("/{catelogId}/withattr")
+    public CommonResponse getAttrGroupWithAttrs(@PathVariable("catelogId") Long catelogId) {
+        List<AttrGroupWithAttrsVO> vos = attrGroupService.getAttrGroupWithAttrsByCatelogId(catelogId);
+        return CommonResponse.success().setData(vos);
     }
 
 }

@@ -1,5 +1,6 @@
 package com.hatsukoi.eshopblvd.product.service;
 
+import com.hatsukoi.eshopblvd.product.entity.Brand;
 import com.hatsukoi.eshopblvd.product.entity.CategoryBrandRelation;
 
 import java.util.List;
@@ -9,6 +10,8 @@ import java.util.List;
  * @date 2022/03/20 Sun 6:48 AM
  */
 public interface CategoryBrandRelationService {
+    List<Brand> getBrandListByCatId(Long catId);
+
     List<CategoryBrandRelation> getCatelogListById(Long brandId);
 
     void insertCategoryBrandRelation(CategoryBrandRelation categoryBrandRelation);
