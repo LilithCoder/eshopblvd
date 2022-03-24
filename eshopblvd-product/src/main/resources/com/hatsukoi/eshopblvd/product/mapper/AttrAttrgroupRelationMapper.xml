@@ -183,6 +183,13 @@
       </if>
     </trim>
   </insert>
+  <insert id="batchInsert">
+    INSERT INTO `pms_attr_attrgroup_relation` (id, attr_id, attr_group_id, attr_sort)
+    values
+    <foreach collection="relations" separator=",">
+      (#{relations.id}, #{relations.attrId}, #{relations.attr_group_id}, #{relations.attr_sort})
+    </foreach>
+  </insert>
   <select id="countByExample" parameterType="com.hatsukoi.eshopblvd.product.entity.AttrAttrgroupRelationExample" resultType="java.lang.Long">
     <!--
       WARNING - @mbg.generated

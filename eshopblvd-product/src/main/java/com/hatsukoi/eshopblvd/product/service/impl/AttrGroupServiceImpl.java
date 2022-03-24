@@ -3,11 +3,14 @@ package com.hatsukoi.eshopblvd.product.service.impl;
 import com.github.pagehelper.PageHelper;
 import com.hatsukoi.eshopblvd.product.dao.AttrAttrgroupRelationMapper;
 import com.hatsukoi.eshopblvd.product.dao.AttrGroupMapper;
+import com.hatsukoi.eshopblvd.product.entity.Attr;
 import com.hatsukoi.eshopblvd.product.entity.AttrAttrgroupRelation;
 import com.hatsukoi.eshopblvd.product.entity.AttrGroup;
 import com.hatsukoi.eshopblvd.product.entity.AttrGroupExample;
 import com.hatsukoi.eshopblvd.product.service.AttrGroupService;
+import com.hatsukoi.eshopblvd.product.service.AttrService;
 import com.hatsukoi.eshopblvd.product.vo.AttrAttrGroupRelationVO;
+import com.hatsukoi.eshopblvd.product.vo.AttrGroupWithAttrsVO;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.BeanUtils;
@@ -31,6 +34,9 @@ public class AttrGroupServiceImpl implements AttrGroupService {
 
     @Autowired
     AttrAttrgroupRelationMapper attrAttrgroupRelationMapper;
+
+    @Autowired
+    AttrService attrService;
 
     @Override
     public CommonPageInfo<AttrGroup> queryAttrGroupPage(Map<String, Object> params, Long categoryId) {
@@ -96,5 +102,27 @@ public class AttrGroupServiceImpl implements AttrGroupService {
         // xml自定义dao批量删除操作
         // delete from pms_attr_attrgroup_relation where (attr_id=1 AND attr_group_id=1) or (attr_id=1 AND attr_group_id=1) or ...
         attrAttrgroupRelationMapper.batchDeleteRelations(relations);
+    }
+
+    /**
+     * 根据分类id查出所有的分组以及这些分组里面的基础属性
+     * @param catelogId
+     * @return
+     */
+    @Override
+    public List<AttrGroupWithAttrsVO> getAttrGroupWithAttrsByCatelogId(Long catelogId) {
+        // 查询分组信息（分组表）
+        AttrGroupExample example = new AttrGroupExample();
+        example.createCriteria().andCatelogIdEqualTo(catelogId);
+        List<AttrGroup> attrGroups = attrGroupMapper.selectByExample(example);
+        // 查询这些分组的属性（属性-分组关联表）
+        List<AttrGroupWithAttrsVO> collect = attrGroups.stream().map((attrGroup) -> {
+            AttrGroupWithAttrsVO attrGroupWithAttrsVO = new AttrGroupWithAttrsVO();
+            BeanUtils.copyProperties(attrGroup, attrGroupWithAttrsVO);
+            List<Attr> relatedAttrsByAttrGroup = attrService.getRelatedAttrsByAttrGroup(attrGroup.getAttrGroupId());
+            attrGroupWithAttrsVO.setAttrs(relatedAttrsByAttrGroup);
+            return attrGroupWithAttrsVO;
+        }).collect(Collectors.toList());
+        return collect;
     }
 }

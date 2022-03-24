@@ -137,7 +137,7 @@ public class AttrServiceImpl implements AttrService {
         attrMapper.updateByPrimaryKeySelective(attr);
 
         // 当属性分组不为空时，说明更新的是规则参数，则需要更新属性-分组关联表
-        if (attrVO.getAttrGroupId() != null) {
+        if (attrVO.getAttrGroupId() != null && attr.getAttrType() == ProductConstant.AttrEnum.ATTR_TYPE_BASE.getCode()) {
             AttrAttrgroupRelation attrAttrgroupRelation = new AttrAttrgroupRelation();
             attrAttrgroupRelation.setAttrId(attrVO.getAttrId());
             attrAttrgroupRelation.setAttrGroupId(attrVO.getAttrGroupId());
