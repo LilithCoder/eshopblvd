@@ -193,6 +193,13 @@
       </if>
     </trim>
   </insert>
+  <insert id="batchInsert">
+    INSERT INTO `pms_spu_images` (spu_id, img_url)
+    values
+    <foreach collection="images" item="image" separator=",">
+        (#{image.spuId}, #{image.imgUrl})
+    </foreach>
+  </insert>
   <select id="countByExample" parameterType="com.hatsukoi.eshopblvd.product.entity.SpuImagesExample" resultType="java.lang.Long">
     <!--
       WARNING - @mbg.generated

@@ -93,4 +93,6 @@ public interface SpuImagesMapper {
      * @mbg.generated
      */
     int updateByPrimaryKey(SpuImages record);
+
+    void batchInsert(@Param("images") List<SpuImages> collect);
 }

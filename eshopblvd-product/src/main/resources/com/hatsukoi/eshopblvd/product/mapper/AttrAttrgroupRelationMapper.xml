@@ -132,8 +132,8 @@
   </delete>
   <delete id="batchDeleteRelations">
     DELETE FROM `pms_attr_attrgroup_relation` WHERE
-    <foreach collection="relations" separator=" OR ">
-        (attr_id=#{relations.attrId} AND attr_group_id=#{relations.attrGroupId})
+    <foreach collection="relations" item="relation" separator=" OR ">
+        (attr_id=#{relation.attrId} AND attr_group_id=#{relation.attrGroupId})
     </foreach>
   </delete>
   <insert id="insert" parameterType="com.hatsukoi.eshopblvd.product.entity.AttrAttrgroupRelation">
@@ -186,8 +186,8 @@
   <insert id="batchInsert">
     INSERT INTO `pms_attr_attrgroup_relation` (id, attr_id, attr_group_id, attr_sort)
     values
-    <foreach collection="relations" separator=",">
-      (#{relations.id}, #{relations.attrId}, #{relations.attr_group_id}, #{relations.attr_sort})
+    <foreach collection="relations" item="relation" separator=",">
+      (#{relation.id}, #{relation.attrId}, #{relation.attr_group_id}, #{relation.attr_sort})
     </foreach>
   </insert>
   <select id="countByExample" parameterType="com.hatsukoi.eshopblvd.product.entity.AttrAttrgroupRelationExample" resultType="java.lang.Long">

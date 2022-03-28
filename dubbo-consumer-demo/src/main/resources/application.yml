@@ -26,3 +26,6 @@ dubbo:
   consumer:
     timeout: 60000
     retries: 3
+logging:
+  level:
+    com.hatsukoi.eshopblvd: debug

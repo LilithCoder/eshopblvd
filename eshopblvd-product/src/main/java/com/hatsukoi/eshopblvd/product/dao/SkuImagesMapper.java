@@ -93,4 +93,6 @@ public interface SkuImagesMapper {
      * @mbg.generated
      */
     int updateByPrimaryKey(SkuImages record);
+
+    void batchInsertImgs(@Param("images") List<SkuImages> skuImages);
 }

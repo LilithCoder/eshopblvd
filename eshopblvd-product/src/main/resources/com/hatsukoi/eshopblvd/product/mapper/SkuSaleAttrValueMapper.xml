@@ -193,6 +193,13 @@
       </if>
     </trim>
   </insert>
+  <insert id="batchInsert">
+    INSERT INTO `pms_sku_sale_attr_value` (attr_id, attr_name, attr_value, sku_id)
+    VALUES
+    <foreach collection="attrValues" item="attrValue" separator=",">
+      (#{attrValue.attrId}, #{attrValue.attrName}, #{attrValue.attrValue}, #{attrValue.skuId})
+    </foreach>
+  </insert>
   <select id="countByExample" parameterType="com.hatsukoi.eshopblvd.product.entity.SkuSaleAttrValueExample" resultType="java.lang.Long">
     <!--
       WARNING - @mbg.generated

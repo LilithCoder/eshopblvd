@@ -875,6 +875,15 @@ demo的逻辑是provider提供服务，返回字符串“You get response from p
 
 以后服务接口声明只放在common基础库了
 
+3. @DubboReference dependencies is failed解决办法
+
+```java
+@Reference(check = false, interfaceName = "com.hatsukoi.eshopblvd.coupon.service.SkuFullReductionService")
+SkuFullReductionService skuFullReductionService;
+```
+
+
+
 最终，问题都解决了～nacos成功服务发现，返回结果符合预期
 
 ![](./docs/assets/5.png)
@@ -2382,7 +2391,7 @@ catelogId传0的话就是获取全部的规格参数
 
 * 根据 分类id 匹配属性id或者模糊查询所属的属性，(销售属性、或者基本属性) * @param params  
 * {  
-*  "page": 1（当前页数） *     "limit": 10 （每页展示的记录数） *     "key": "xxx"（查询用关键词） * } * @param attrType 属性类型[0-销售属性，1-基本属性]  
+* "page": 1（当前页数） *     "limit": 10 （每页展示的记录数） *     "key": "xxx"（查询用关键词） * } * @param attrType 属性类型[0-销售属性，1-基本属性]  
 * @param catelogId 所属分类id：分类id若为0，则查询全部分类下的属性  
 * @return 返回VO字段还包括了所属分类名，所有分组名（如果是规格参数）
 
@@ -2453,10 +2462,6 @@ catelogId传0的话就是获取全部的规格参数
     }
 }
 ```
-
-
-
-
 
 ##### 新增【接口】：新增属性
 
@@ -2618,8 +2623,6 @@ catelogId传0的话就是获取全部的规格参数
     }
 ```
 
-
-
 ##### 新增【接口】：删除属性与分组的关联关系
 
 `/product/attrgroup/attr/relation/delete`
@@ -2651,13 +2654,11 @@ delete from pms_attr_attrgroup_relation where (attr_id=1 AND attr_group_id=1) or
 ```xml
   <delete id="batchDeleteRelations">
     DELETE FROM `pms_attr_attrgroup_relation` WHERE
-    <foreach collection="relations" separator=" OR ">
-        (attr_id=#{relations.attrId} AND attr_group_id=#{relations.attrGroupId})
+    <foreach collection="relations" item="relation" separator=" OR ">
+        (attr_id=#{relation.attrId} AND attr_group_id=#{relation.attrGroupId})
     </foreach>
   </delete>
 ```
-
-
 
 ##### 新增【接口】：获取属性分组没有关联的其他属性
 
@@ -2761,15 +2762,14 @@ delete from pms_attr_attrgroup_relation where (attr_id=1 AND attr_group_id=1) or
         attrAttrgroupRelationService.batchInsertRelations(relationVOs);
         return CommonResponse.success();
     }
-
 ```
 
 ```xml
   <insert id="batchInsert">
     INSERT INTO `pms_attr_attrgroup_relation` (id, attr_id, attr_group_id, attr_sort)
     values
-    <foreach collection="relations" separator=",">
-      (#{relations.id}, #{relations.attrId}, #{relations.attr_group_id}, #{relations.attr_sort})
+    <foreach collection="relations" item="relation" separator=",">
+      (#{relation.id}, #{relation.attrId}, #{relation.attr_group_id}, #{relation.attr_sort})
     </foreach>
   </insert>
 ```
@@ -2845,5 +2845,114 @@ Controller接收Service处理完的数据，封装页面指定的VO
 [17、获取分类下所有分组&amp;关联属性 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/6JM6txHf)
 
 ```java
-
+    /**
+     * 根据分类id查出所有的分组以及这些分组里面的基础属性
+     * @param catelogId
+     * @return
+     */
+    @Override
+    public List<AttrGroupWithAttrsVO> getAttrGroupWithAttrsByCatelogId(Long catelogId) {
+        // 查询分组信息（分组表）
+        AttrGroupExample example = new AttrGroupExample();
+        example.createCriteria().andCatelogIdEqualTo(catelogId);
+        List<AttrGroup> attrGroups = attrGroupMapper.selectByExample(example);
+        // 查询这些分组的属性（属性-分组关联表）
+        List<AttrGroupWithAttrsVO> collect = attrGroups.stream().map((attrGroup) -> {
+            AttrGroupWithAttrsVO attrGroupWithAttrsVO = new AttrGroupWithAttrsVO();
+            BeanUtils.copyProperties(attrGroup, attrGroupWithAttrsVO);
+            List<Attr> relatedAttrsByAttrGroup = attrService.getRelatedAttrsByAttrGroup(attrGroup.getAttrGroupId());
+            attrGroupWithAttrsVO.setAttrs(relatedAttrsByAttrGroup);
+            return attrGroupWithAttrsVO;
+        }).collect(Collectors.toList());
+        return collect;
+    }
 ```
+
+##### 新增【接口】：# 新增商品
+
+`/product/spuinfo/insert`
+
+[19、新增商品 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/5ULdV3dd)
+
+保存信息需要分这几个步骤，调用优惠系统的接口需要用远程调用rpc
+
+【1】保存spu基本信息「pms_spu_info」
+
+【2】保存spu的描述图片「pms_spu_info_desc」
+
+【3】保存spu的商品图集（sku用）「pms_spu_images」
+
+【4】保存spu的积分信息「sms_spu_bounds」
+
+【5】保存spu的规格参数「pms_product_attr_value」
+
+【6】保存当前spu对应的所有sku的信息
+
+        6.1 插入sku的基本信息「pms_sku_info」
+
+        6.2 插入sku的图片信息「pms_sku_image」
+
+        6.3 插入sku的销售属性信息「pms_sku_sale_attr_value」
+
+        6.4 插入sku的满减、满折、会员价信息「sms_sku_full_reduction」「sms_sku_ladder」「sms_member_price」
+
+需要存的商品信息
+
+```java
+public class SpuInsertVO {
+    /**
+     * 商品名称
+     */
+    private String spuName;
+    /**
+     * 商品描述
+     */
+    private String spuDescription;
+    /**
+     * 所属分类id
+     */
+    private Long catalogId;
+    /**
+     * 品牌id
+     */
+    private Long brandId;
+    /**
+     * 商品重量
+     */
+    private BigDecimal weight;
+    /**
+     * 上架状态[0 - 下架，1 - 上架]
+     */
+    private Byte publishStatus;
+    /**
+     * 商品描述图片地址
+     */
+    private List<String> decript;
+    /**
+     * 商品图集（sku用）
+     */
+    private List<String> images;
+    /**
+     * 积分信息
+     */
+    private Bounds bounds;
+    /**
+     * 规格参数
+     */
+    private List<BaseAttr> baseAttrs;
+    /**
+     * 所属sku的信息
+     */
+    private List<Sku> skus;
+}
+```
+
+##### 设置服务的内存占用
+
+configuration设置compound，加入所有需要设置的服务
+
+![](./docs/assets/68.png)
+
+设置最大占用内存`-Xmx100m`
+
+![](./docs/assets/69.png)

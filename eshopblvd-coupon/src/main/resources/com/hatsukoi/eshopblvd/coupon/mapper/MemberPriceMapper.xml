@@ -193,6 +193,13 @@
       </if>
     </trim>
   </insert>
+  <insert id="batchInsert">
+    INSERT INTO `sms_member_price` (sku_id, member_level_id, member_level_name, member_price, add_other)
+    values
+    <foreach collection="prices" item="price" separator=",">
+      (#{price.sku_id}, #{price.member_level_id}, #{price.member_level_name}, #{price.member_price}, #{price.add_other})
+    </foreach>
+  </insert>
   <select id="countByExample" parameterType="com.hatsukoi.eshopblvd.coupon.entity.MemberPriceExample" resultType="java.lang.Long">
     <!--
       WARNING - @mbg.generated

@@ -93,4 +93,6 @@ public interface SkuSaleAttrValueMapper {
      * @mbg.generated
      */
     int updateByPrimaryKey(SkuSaleAttrValue record);
+
+    void batchInsert(@Param("attrValues") List<SkuSaleAttrValue> skuSaleAttrValues);
 }

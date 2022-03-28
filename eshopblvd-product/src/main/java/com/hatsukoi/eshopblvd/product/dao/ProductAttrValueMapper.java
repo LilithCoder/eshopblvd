@@ -93,4 +93,6 @@ public interface ProductAttrValueMapper {
      * @mbg.generated
      */
     int updateByPrimaryKey(ProductAttrValue record);
+
+    void batchInsert(@Param("attrValues") List<ProductAttrValue> collect);
 }

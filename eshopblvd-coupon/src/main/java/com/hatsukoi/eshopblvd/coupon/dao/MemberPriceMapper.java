@@ -93,4 +93,6 @@ public interface MemberPriceMapper {
      * @mbg.generated
      */
     int updateByPrimaryKey(MemberPrice record);
+
+    void batchInsert(@Param("prices") List<MemberPrice> memberPrices);
 }
