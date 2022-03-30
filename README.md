@@ -875,6 +875,17 @@ demo的逻辑是provider提供服务，返回字符串“You get response from p
 
 以后服务接口声明只放在common基础库了
 
+3. @DubboReference dependencies is failed解决办法
+
+```java
+@Reference(check = false, interfaceName = "com.hatsukoi.eshopblvd.coupon.service.SkuFullReductionService")
+SkuFullReductionService skuFullReductionService;
+```
+
+4. com.alibaba.dubbo.rpc.RpcException: Failed to invoke the method findGoodsById in the service com.qingcheng.service.goods.SpuService. Tried 3 times
+   
+   序列化的问题，实体类都实现了序列化就好了
+
 最终，问题都解决了～nacos成功服务发现，返回结果符合预期
 
 ![](./docs/assets/5.png)
@@ -2382,7 +2393,7 @@ catelogId传0的话就是获取全部的规格参数
 
 * 根据 分类id 匹配属性id或者模糊查询所属的属性，(销售属性、或者基本属性) * @param params  
 * {  
-*  "page": 1（当前页数） *     "limit": 10 （每页展示的记录数） *     "key": "xxx"（查询用关键词） * } * @param attrType 属性类型[0-销售属性，1-基本属性]  
+* "page": 1（当前页数） *     "limit": 10 （每页展示的记录数） *     "key": "xxx"（查询用关键词） * } * @param attrType 属性类型[0-销售属性，1-基本属性]  
 * @param catelogId 所属分类id：分类id若为0，则查询全部分类下的属性  
 * @return 返回VO字段还包括了所属分类名，所有分组名（如果是规格参数）
 
@@ -2453,10 +2464,6 @@ catelogId传0的话就是获取全部的规格参数
     }
 }
 ```
-
-
-
-
 
 ##### 新增【接口】：新增属性
 
@@ -2618,8 +2625,6 @@ catelogId传0的话就是获取全部的规格参数
     }
 ```
 
-
-
 ##### 新增【接口】：删除属性与分组的关联关系
 
 `/product/attrgroup/attr/relation/delete`
@@ -2651,13 +2656,11 @@ delete from pms_attr_attrgroup_relation where (attr_id=1 AND attr_group_id=1) or
 ```xml
   <delete id="batchDeleteRelations">
     DELETE FROM `pms_attr_attrgroup_relation` WHERE
-    <foreach collection="relations" separator=" OR ">
-        (attr_id=#{relations.attrId} AND attr_group_id=#{relations.attrGroupId})
+    <foreach collection="relations" item="relation" separator=" OR ">
+        (attr_id=#{relation.attrId} AND attr_group_id=#{relation.attrGroupId})
     </foreach>
   </delete>
 ```
-
-
 
 ##### 新增【接口】：获取属性分组没有关联的其他属性
 
@@ -2761,15 +2764,14 @@ delete from pms_attr_attrgroup_relation where (attr_id=1 AND attr_group_id=1) or
         attrAttrgroupRelationService.batchInsertRelations(relationVOs);
         return CommonResponse.success();
     }
-
 ```
 
 ```xml
   <insert id="batchInsert">
     INSERT INTO `pms_attr_attrgroup_relation` (id, attr_id, attr_group_id, attr_sort)
     values
-    <foreach collection="relations" separator=",">
-      (#{relations.id}, #{relations.attrId}, #{relations.attr_group_id}, #{relations.attr_sort})
+    <foreach collection="relations" item="relation" separator=",">
+      (#{relation.id}, #{relation.attrId}, #{relation.attr_group_id}, #{relation.attr_sort})
     </foreach>
   </insert>
 ```
@@ -2845,5 +2847,193 @@ Controller接收Service处理完的数据，封装页面指定的VO
 [17、获取分类下所有分组&amp;关联属性 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/6JM6txHf)
 
 ```java
-
+    /**
+     * 根据分类id查出所有的分组以及这些分组里面的基础属性
+     * @param catelogId
+     * @return
+     */
+    @Override
+    public List<AttrGroupWithAttrsVO> getAttrGroupWithAttrsByCatelogId(Long catelogId) {
+        // 查询分组信息（分组表）
+        AttrGroupExample example = new AttrGroupExample();
+        example.createCriteria().andCatelogIdEqualTo(catelogId);
+        List<AttrGroup> attrGroups = attrGroupMapper.selectByExample(example);
+        // 查询这些分组的属性（属性-分组关联表）
+        List<AttrGroupWithAttrsVO> collect = attrGroups.stream().map((attrGroup) -> {
+            AttrGroupWithAttrsVO attrGroupWithAttrsVO = new AttrGroupWithAttrsVO();
+            BeanUtils.copyProperties(attrGroup, attrGroupWithAttrsVO);
+            List<Attr> relatedAttrsByAttrGroup = attrService.getRelatedAttrsByAttrGroup(attrGroup.getAttrGroupId());
+            attrGroupWithAttrsVO.setAttrs(relatedAttrsByAttrGroup);
+            return attrGroupWithAttrsVO;
+        }).collect(Collectors.toList());
+        return collect;
+    }
 ```
+
+##### 新增【接口】：# 新增商品
+
+`/product/spuinfo/insert`
+
+[19、新增商品 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/5ULdV3dd)
+
+保存信息需要分这几个步骤，调用优惠系统的接口需要用远程调用rpc
+
+【1】保存spu基本信息「pms_spu_info」
+
+【2】保存spu的描述图片「pms_spu_info_desc」
+
+【3】保存spu的商品图集（sku用）「pms_spu_images」
+
+【4】保存spu的积分信息「sms_spu_bounds」
+
+【5】保存spu的规格参数「pms_product_attr_value」
+
+【6】保存当前spu对应的所有sku的信息
+
+        6.1 插入sku的基本信息「pms_sku_info」
+
+        6.2 插入sku的图片信息「pms_sku_image」
+
+        6.3 插入sku的销售属性信息「pms_sku_sale_attr_value」
+
+        6.4 插入sku的满减、满折、会员价信息「sms_sku_full_reduction」「sms_sku_ladder」「sms_member_price」
+
+需要存的商品信息
+
+```java
+public class SpuInsertVO {
+    /**
+     * 商品名称
+     */
+    private String spuName;
+    /**
+     * 商品描述
+     */
+    private String spuDescription;
+    /**
+     * 所属分类id
+     */
+    private Long catalogId;
+    /**
+     * 品牌id
+     */
+    private Long brandId;
+    /**
+     * 商品重量
+     */
+    private BigDecimal weight;
+    /**
+     * 上架状态[0 - 下架，1 - 上架]
+     */
+    private Byte publishStatus;
+    /**
+     * 商品描述图片地址
+     */
+    private List<String> decript;
+    /**
+     * 商品图集（sku用）
+     */
+    private List<String> images;
+    /**
+     * 积分信息
+     */
+    private Bounds bounds;
+    /**
+     * 规格参数
+     */
+    private List<BaseAttr> baseAttrs;
+    /**
+     * 所属sku的信息
+     */
+    private List<Sku> skus;
+}
+```
+
+问题记录：
+
+1. [Field 'Id' doesn't have a default value解决方法_刘信坚的博客的博客-CSDN博客](https://blog.csdn.net/qq_38974634/article/details/81039660)
+   
+   在Mysql中没有将主键设置为自增，所以在使用Mybatis时获取生成主键时出现异常
+
+2. Beanutils造成dubbo反序列化失败？# dubbo调用时发送 java.lang.ClassCastException: java.util.HashMap cannot be cast to com.xxx
+   
+   https://zhuanlan.zhihu.com/p/248122719
+   
+   主要是由于BeanUtils浅拷贝造成。并且引发连锁反应，造成`Dubbo`反序列化异常以及`EmployeeConvert`的转换异常，最后抛出了`java.util.HashMap cannot be cast to com.aixiao.inv.common.dto.tax.AddEmployeeDTO$Employee` 错误信息
+   
+   既然知道了问题出现的原因，那么解决起来就很简单了。对于单一的属性，那么不涉及到深拷贝的问题，适合用BeanUtils继续进行拷贝。但是涉及到集合我们可以这样处理：
+   
+   1. 简单粗暴使用foreach进行拷贝。
+   2. 使用labmda实现进行转换。
+   
+   ```java
+   AddEmployeeDTO dto = new AddEmployeeDTO();
+   dto.setEmployees(form.getEmployees().stream().map(tmp -> {
+     AddEmployeeDTO.Employee employee = new AddEmployeeDTO.Employee();
+     BeanUtils.copyProperties(tmp,employee);
+     return employee;
+   }).collect(Collectors.toList()));
+   ```
+
+3. 【SQLIntegrityConstraintViolationException】：Duplicate entry
+   
+   [【SQLIntegrityConstraintViolationException】：Duplicate entry_layman .的博客-CSDN博客](https://blog.csdn.net/single_0910/article/details/120879415)
+   
+   [springboot利用实体执行批量新增报sql异常主键冲突的错误（如：Duplicate entry '29' for key 'PRIMARY'）的解决方法_恋上寂寞的博客-CSDN博客](https://blog.csdn.net/weixin_42342164/article/details/103604165)
+   
+   MySQL数据库中的这张表，设置的主键策略是自增长，但是当我批量插入数据时，它并没有实现自增。
+   
+   准确来说，是只有第一条数据的ID实现了自增，后面的ID不再自增。
+   
+   因此，我的批量插入操作，永远只能成功一条。
+   
+   真是奇了怪了，试了各种方法，仍然没有解决。
+   
+   索性不用数据库自增的策略，改为手动设置主键ID
+   
+   !!!!!!!!!以后不要去循环里调用远程服务去插入数据了
+   
+   ```java
+       @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
+       int insert(SkuLadder record);
+   ```
+
+4. [MyBatis + MySQL返回插入成功后的主键id](https://www.cnblogs.com/han-1034683568/p/8305122.html)
+   
+   ```xml
+    <insert id="insertArticle" useGeneratedKeys="true" keyProperty="id" parameterType="Article">
+   insert into ssm_article(article_title,article_create_date,article_content,add_name)
+   values(#{articleTitle},#{articleCreateDate},#{articleContent},#{addName})
+   </insert>
+   ```
+
+![](./docs/assets/70.png)
+
+```java
+articleDao.insertArticle(article);
+Assert.assertTrue(article.getId()!=null);
+```
+
+##### 事务问题
+
+rpc调用的服务如果事务失败了的话，就不回滚事务，这样的话会有下次插入时主键重复的问题，远程服务的数据库里，新的主键你没回滚删除，那么下次插入时候还是这样主键，那么就重复了
+
+##### 设置服务的内存占用
+
+configuration设置compound，加入所有需要设置的服务
+
+![](./docs/assets/68.png)
+
+设置最大占用内存`-Xmx100m`
+
+![](./docs/assets/69.png)
+
+mysql的默认隔离模式是可重复读，读到的最起码是提交了的数据
+
+为了能够在调试过程中，获取到数据库中的数据信息，可以调整隔离级别为读未提交：
+
+```sql
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+```
+
+但是它对于当前的事务窗口生效，如果想要设置全局的，需要加上global字段

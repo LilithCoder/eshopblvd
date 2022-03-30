@@ -80,4 +80,12 @@ public class CommonResponse extends HashMap<String, Object> {
         put("data", data);
         return this;
     }
+
+    /**
+     * 获取返回码
+     * @return
+     */
+    public int getCode() {
+        return (int) get("code");
+    }
 }

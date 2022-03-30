@@ -184,6 +184,13 @@
       </if>
     </trim>
   </insert>
+  <insert id="batchInsertImgs">
+    INSERT INTO `pms_sku_images` (sku_id, img_url, default_img)
+    VALUES
+    <foreach collection="images" item="image" separator=",">
+        (#{image.skuId}, #{image.imgUrl}, #{image.defaultImg})
+    </foreach>
+  </insert>
   <select id="countByExample" parameterType="com.hatsukoi.eshopblvd.product.entity.SkuImagesExample" resultType="java.lang.Long">
     <!--
       WARNING - @mbg.generated

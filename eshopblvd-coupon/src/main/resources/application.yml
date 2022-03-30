@@ -16,3 +16,16 @@ mybatis:
 
 server:
   port: 6000
+
+dubbo:
+  application:
+    name: eshopblvd-coupon-dubbo
+  registry:
+    address: nacos://47.103.8.41:8848
+  monitor:
+    protocol: registry
+  protocol:
+    port: 20881
+  consumer:
+    timeout: 60000
+    retries: 3

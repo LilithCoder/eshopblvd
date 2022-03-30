@@ -277,4 +277,9 @@ public class AttrServiceImpl implements AttrService {
         // 封装成分页数据并返回
         return CommonPageInfo.convertToCommonPage(attrs);
     }
+
+    @Override
+    public Attr getAttrById(Long attrId) {
+        return attrMapper.selectByPrimaryKey(attrId);
+    }
 }
