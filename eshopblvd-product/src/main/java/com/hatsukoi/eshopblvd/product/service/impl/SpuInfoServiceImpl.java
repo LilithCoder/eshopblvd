@@ -8,7 +8,7 @@ import com.hatsukoi.eshopblvd.product.service.*;
 import com.hatsukoi.eshopblvd.product.vo.*;
 import com.hatsukoi.eshopblvd.to.SkuReductionTO;
 import com.hatsukoi.eshopblvd.to.SpuBoundTO;
-import com.hatsukoi.eshopblvd.utils.CommonResponse;
+import com.hatsukoi.eshopblvd.to.MemberPrice;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.apache.dubbo.config.annotation.Reference;
@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -89,8 +90,8 @@ public class SpuInfoServiceImpl implements SpuInfoService {
         SpuBoundTO spuBoundTO = new SpuBoundTO(); // 远程调用传递自定义DTO
         BeanUtils.copyProperties(bounds, spuBoundTO);
         spuBoundTO.setSpuId(spuInfo.getId());
-        CommonResponse response = spuBoundsService.insertSpuBounds(spuBoundTO);
-        if (response.getCode() != HttpStatus.SC_OK) {
+        HashMap response = spuBoundsService.insertSpuBounds(spuBoundTO);
+        if ((int) response.get("code") != HttpStatus.SC_OK) {
             log.error("远程调用coupon服务插入spu积分信息失败::spuBoundsService.insertSpuBounds()");
         }
 
@@ -133,11 +134,13 @@ public class SpuInfoServiceImpl implements SpuInfoService {
                 skuInfo.setPrice(sku.getPrice());
                 skuInfo.setSaleCount(0L);
                 skuInfoService.insertSkuInfo(skuInfo);
+                Long skuId = skuInfo.getSkuId();
+                System.out.println("skuinfo {}" + skuInfo);
 
                 // 6.2 插入sku的图片信息「pms_sku_image」
                 List<SkuImages> skuImages = sku.getImages().stream().map(image -> {
                     SkuImages skuImage = new SkuImages();
-                    skuImage.setSkuId(skuInfo.getSkuId());
+                    skuImage.setSkuId(skuId);
                     skuImage.setDefaultImg(image.getDefaultImg());
                     skuImage.setImgUrl(image.getImgUrl());
                     return skuImage;
@@ -151,18 +154,29 @@ public class SpuInfoServiceImpl implements SpuInfoService {
                 List<SkuSaleAttrValue> skuSaleAttrValues = sku.getAttr().stream().map(saleAttr -> {
                     SkuSaleAttrValue skuSaleAttrValue = new SkuSaleAttrValue();
                     BeanUtils.copyProperties(saleAttr, skuSaleAttrValue);
-                    skuSaleAttrValue.setSkuId(skuInfo.getSkuId());
+                    skuSaleAttrValue.setSkuId(skuId);
                     return skuSaleAttrValue;
                 }).collect(Collectors.toList());
                 skuSaleAttrValueService.batchInsert(skuSaleAttrValues);
 
                 // 6.4 插入sku的满减、满折、会员价信息「sms_sku_full_reduction」「sms_sku_ladder」「sms_member_price」
                 SkuReductionTO skuReductionTO = new SkuReductionTO();
-                BeanUtils.copyProperties(sku, skuReductionTO);
-                skuReductionTO.setSkuId(skuInfo.getSkuId());
+                skuReductionTO.setSkuId(skuId);
+                skuReductionTO.setFullCount(sku.getFullCount());
+                skuReductionTO.setDiscount(sku.getDiscount());
+                skuReductionTO.setCountStatus(sku.getCountStatus());
+                skuReductionTO.setFullPrice(sku.getFullPrice());
+                skuReductionTO.setReducePrice(sku.getReducePrice());
+                skuReductionTO.setPriceStatus(sku.getPriceStatus());
+                List<MemberPrice> memberPriceList = sku.getMemberPrice().stream().map(item -> {
+                    MemberPrice memberPrice = new MemberPrice();
+                    BeanUtils.copyProperties(item, memberPrice);
+                    return memberPrice;
+                }).collect(Collectors.toList());
+                skuReductionTO.setMemberPrice(memberPriceList);
                 if (skuReductionTO.getFullCount() > 0 || skuReductionTO.getFullPrice().compareTo(new BigDecimal("0")) == 1) {
-                    CommonResponse resp = skuFullReductionService.insertSkuReduction(skuReductionTO);
-                    if (resp.getCode() != HttpStatus.SC_OK) {
+                    HashMap resp = skuFullReductionService.insertSkuReduction(skuReductionTO);
+                    if ((int) resp.get("code") != HttpStatus.SC_OK) {
                         log.error("远程调用coupon服务插入sku优惠信息失败::skuFullReductionService.insertSkuReduction(skuReductionTO)");
                     }
                 }

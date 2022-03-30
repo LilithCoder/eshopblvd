@@ -3,6 +3,8 @@ package com.hatsukoi.eshopblvd.coupon.dao;
 import com.hatsukoi.eshopblvd.coupon.entity.SkuFullReduction;
 import com.hatsukoi.eshopblvd.coupon.entity.SkuFullReductionExample;
 import java.util.List;
+
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 
 public interface SkuFullReductionMapper {
@@ -36,6 +38,7 @@ public interface SkuFullReductionMapper {
      *
      * @mbg.generated
      */
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(SkuFullReduction record);
 
     /**

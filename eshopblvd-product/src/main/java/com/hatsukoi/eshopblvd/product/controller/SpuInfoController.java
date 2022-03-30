@@ -23,6 +23,7 @@ public class SpuInfoController {
      * @param vo
      * @return
      */
+    @RequestMapping("/insert")
     public CommonResponse insert(@RequestBody SpuInsertVO vo) {
         spuInfoService.insertNewSpu(vo);
         return CommonResponse.success();

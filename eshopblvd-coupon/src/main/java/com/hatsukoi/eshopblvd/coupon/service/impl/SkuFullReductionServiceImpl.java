@@ -1,19 +1,20 @@
 package com.hatsukoi.eshopblvd.coupon.service.impl;
 
 import com.hatsukoi.eshopblvd.coupon.dao.SkuFullReductionMapper;
-import com.hatsukoi.eshopblvd.coupon.entity.MemberPrice;
 import com.hatsukoi.eshopblvd.coupon.entity.SkuFullReduction;
 import com.hatsukoi.eshopblvd.coupon.entity.SkuLadder;
 import com.hatsukoi.eshopblvd.coupon.service.MemberPriceService;
 import com.hatsukoi.eshopblvd.coupon.service.SkuFullReductionService;
 import com.hatsukoi.eshopblvd.coupon.service.SkuLadderService;
+import com.hatsukoi.eshopblvd.to.MemberPrice;
 import com.hatsukoi.eshopblvd.to.SkuReductionTO;
-import com.hatsukoi.eshopblvd.utils.CommonResponse;
+import org.apache.http.HttpStatus;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -41,7 +42,7 @@ public class SkuFullReductionServiceImpl implements SkuFullReductionService {
      * @return
      */
     @Override
-    public CommonResponse insertSkuReduction(SkuReductionTO reductionTo) {
+    public HashMap insertSkuReduction(SkuReductionTO reductionTo) {
         // sku的满减「sms_sku_full_reduction」
         SkuFullReduction skuFullReduction = new SkuFullReduction();
         BeanUtils.copyProperties(reductionTo, skuFullReduction);
@@ -60,19 +61,21 @@ public class SkuFullReductionServiceImpl implements SkuFullReductionService {
         }
 
         // 会员价信息「sms_member_price」
-        List<MemberPrice> memberPrices = reductionTo.getMemberPrice().stream().map(memberPrice -> {
-            MemberPrice finalMemberPrice = new MemberPrice();
+        List<MemberPrice> prices = reductionTo.getMemberPrice();
+        List<com.hatsukoi.eshopblvd.coupon.entity.MemberPrice> memberPrices = prices.stream().map(price -> {
+            MemberPrice memberPrice = new MemberPrice();
+            BeanUtils.copyProperties(price, memberPrice);
+            com.hatsukoi.eshopblvd.coupon.entity.MemberPrice finalMemberPrice = new com.hatsukoi.eshopblvd.coupon.entity.MemberPrice();
             finalMemberPrice.setSkuId(reductionTo.getSkuId());
             finalMemberPrice.setMemberLevelId(memberPrice.getId());
             finalMemberPrice.setMemberLevelName(memberPrice.getName());
             finalMemberPrice.setMemberPrice(memberPrice.getPrice());
             finalMemberPrice.setAddOther(Boolean.TRUE);
             return finalMemberPrice;
-        }).filter(item -> {
-            return item.getMemberPrice().compareTo(new BigDecimal("0")) == 1;
-        }).collect(Collectors.toList());
+        }).filter(item -> item.getMemberPrice().compareTo(new BigDecimal("0")) == 1).collect(Collectors.toList());
         memberPriceService.batchInsert(memberPrices);
-
-        return CommonResponse.success();
+        HashMap res = new HashMap();
+        res.put("code", HttpStatus.SC_OK);
+        return res;
     }
 }

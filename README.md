@@ -882,7 +882,9 @@ demo的逻辑是provider提供服务，返回字符串“You get response from p
 SkuFullReductionService skuFullReductionService;
 ```
 
-
+4. com.alibaba.dubbo.rpc.RpcException: Failed to invoke the method findGoodsById in the service com.qingcheng.service.goods.SpuService. Tried 3 times
+   
+   序列化的问题，实体类都实现了序列化就好了
 
 最终，问题都解决了～nacos成功服务发现，返回结果符合预期
 
@@ -2947,6 +2949,75 @@ public class SpuInsertVO {
 }
 ```
 
+问题记录：
+
+1. [Field 'Id' doesn't have a default value解决方法_刘信坚的博客的博客-CSDN博客](https://blog.csdn.net/qq_38974634/article/details/81039660)
+   
+   在Mysql中没有将主键设置为自增，所以在使用Mybatis时获取生成主键时出现异常
+
+2. Beanutils造成dubbo反序列化失败？# dubbo调用时发送 java.lang.ClassCastException: java.util.HashMap cannot be cast to com.xxx
+   
+   https://zhuanlan.zhihu.com/p/248122719
+   
+   主要是由于BeanUtils浅拷贝造成。并且引发连锁反应，造成`Dubbo`反序列化异常以及`EmployeeConvert`的转换异常，最后抛出了`java.util.HashMap cannot be cast to com.aixiao.inv.common.dto.tax.AddEmployeeDTO$Employee` 错误信息
+   
+   既然知道了问题出现的原因，那么解决起来就很简单了。对于单一的属性，那么不涉及到深拷贝的问题，适合用BeanUtils继续进行拷贝。但是涉及到集合我们可以这样处理：
+   
+   1. 简单粗暴使用foreach进行拷贝。
+   2. 使用labmda实现进行转换。
+   
+   ```java
+   AddEmployeeDTO dto = new AddEmployeeDTO();
+   dto.setEmployees(form.getEmployees().stream().map(tmp -> {
+     AddEmployeeDTO.Employee employee = new AddEmployeeDTO.Employee();
+     BeanUtils.copyProperties(tmp,employee);
+     return employee;
+   }).collect(Collectors.toList()));
+   ```
+
+3. 【SQLIntegrityConstraintViolationException】：Duplicate entry
+   
+   [【SQLIntegrityConstraintViolationException】：Duplicate entry_layman .的博客-CSDN博客](https://blog.csdn.net/single_0910/article/details/120879415)
+   
+   [springboot利用实体执行批量新增报sql异常主键冲突的错误（如：Duplicate entry '29' for key 'PRIMARY'）的解决方法_恋上寂寞的博客-CSDN博客](https://blog.csdn.net/weixin_42342164/article/details/103604165)
+   
+   MySQL数据库中的这张表，设置的主键策略是自增长，但是当我批量插入数据时，它并没有实现自增。
+   
+   准确来说，是只有第一条数据的ID实现了自增，后面的ID不再自增。
+   
+   因此，我的批量插入操作，永远只能成功一条。
+   
+   真是奇了怪了，试了各种方法，仍然没有解决。
+   
+   索性不用数据库自增的策略，改为手动设置主键ID
+   
+   !!!!!!!!!以后不要去循环里调用远程服务去插入数据了
+   
+   ```java
+       @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
+       int insert(SkuLadder record);
+   ```
+
+4. [MyBatis + MySQL返回插入成功后的主键id](https://www.cnblogs.com/han-1034683568/p/8305122.html)
+   
+   ```xml
+    <insert id="insertArticle" useGeneratedKeys="true" keyProperty="id" parameterType="Article">
+   insert into ssm_article(article_title,article_create_date,article_content,add_name)
+   values(#{articleTitle},#{articleCreateDate},#{articleContent},#{addName})
+   </insert>
+   ```
+
+![](./docs/assets/70.png)
+
+```java
+articleDao.insertArticle(article);
+Assert.assertTrue(article.getId()!=null);
+```
+
+##### 事务问题
+
+rpc调用的服务如果事务失败了的话，就不回滚事务，这样的话会有下次插入时主键重复的问题，远程服务的数据库里，新的主键你没回滚删除，那么下次插入时候还是这样主键，那么就重复了
+
 ##### 设置服务的内存占用
 
 configuration设置compound，加入所有需要设置的服务
@@ -2956,3 +3027,13 @@ configuration设置compound，加入所有需要设置的服务
 设置最大占用内存`-Xmx100m`
 
 ![](./docs/assets/69.png)
+
+mysql的默认隔离模式是可重复读，读到的最起码是提交了的数据
+
+为了能够在调试过程中，获取到数据库中的数据信息，可以调整隔离级别为读未提交：
+
+```sql
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+```
+
+但是它对于当前的事务窗口生效，如果想要设置全局的，需要加上global字段

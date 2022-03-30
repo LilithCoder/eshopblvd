@@ -3,6 +3,8 @@ package com.hatsukoi.eshopblvd.coupon.dao;
 import com.hatsukoi.eshopblvd.coupon.entity.SkuLadder;
 import com.hatsukoi.eshopblvd.coupon.entity.SkuLadderExample;
 import java.util.List;
+
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 
 public interface SkuLadderMapper {
@@ -36,6 +38,7 @@ public interface SkuLadderMapper {
      *
      * @mbg.generated
      */
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     int insert(SkuLadder record);
 
     /**

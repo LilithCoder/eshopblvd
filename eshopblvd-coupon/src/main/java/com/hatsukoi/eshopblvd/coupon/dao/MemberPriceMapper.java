@@ -3,6 +3,8 @@ package com.hatsukoi.eshopblvd.coupon.dao;
 import com.hatsukoi.eshopblvd.coupon.entity.MemberPrice;
 import com.hatsukoi.eshopblvd.coupon.entity.MemberPriceExample;
 import java.util.List;
+
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 
 public interface MemberPriceMapper {
@@ -94,5 +96,6 @@ public interface MemberPriceMapper {
      */
     int updateByPrimaryKey(MemberPrice record);
 
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
     void batchInsert(@Param("prices") List<MemberPrice> memberPrices);
 }

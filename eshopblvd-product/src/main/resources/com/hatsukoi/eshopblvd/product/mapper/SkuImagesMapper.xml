@@ -185,7 +185,7 @@
     </trim>
   </insert>
   <insert id="batchInsertImgs">
-    INSERT INTO `pms_sku_image` (sku_id, img_url, default_img)
+    INSERT INTO `pms_sku_images` (sku_id, img_url, default_img)
     VALUES
     <foreach collection="images" item="image" separator=",">
         (#{image.skuId}, #{image.imgUrl}, #{image.defaultImg})

@@ -3,6 +3,8 @@ package com.hatsukoi.eshopblvd.product.dao;
 import com.hatsukoi.eshopblvd.product.entity.SkuInfo;
 import com.hatsukoi.eshopblvd.product.entity.SkuInfoExample;
 import java.util.List;
+
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 
 public interface SkuInfoMapper {
