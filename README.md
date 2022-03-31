@@ -3014,6 +3014,8 @@ articleDao.insertArticle(article);
 Assert.assertTrue(article.getId()!=null);
 ```
 
+TODO: p91 - 05:20（不重要，可后续搞）spu的描述
+
 ##### 事务问题
 
 rpc调用的服务如果事务失败了的话，就不回滚事务，这样的话会有下次插入时主键重复的问题，远程服务的数据库里，新的主键你没回滚删除，那么下次插入时候还是这样主键，那么就重复了
@@ -3037,3 +3039,11 @@ SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 ```
 
 但是它对于当前的事务窗口生效，如果想要设置全局的，需要加上global字段
+
+#### spu管理
+
+新增【接口】：# spu检索
+
+/product/spuinfo/list
+
+[18、spu检索 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/9LISLvy7)

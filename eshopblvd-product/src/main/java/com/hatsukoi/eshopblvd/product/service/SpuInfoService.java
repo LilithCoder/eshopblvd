@@ -2,6 +2,9 @@ package com.hatsukoi.eshopblvd.product.service;
 
 import com.hatsukoi.eshopblvd.product.entity.SpuInfo;
 import com.hatsukoi.eshopblvd.product.vo.SpuInsertVO;
+import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
+
+import java.util.Map;
 
 /**
  * @author gaoweilin
@@ -11,4 +14,6 @@ public interface SpuInfoService {
     void insertNewSpu(SpuInsertVO vo);
 
     void insertBaseSpuInfo(SpuInfo spuInfo);
+
+    CommonPageInfo<SpuInfo> querySpuPage(Map<String, Object> params);
 }

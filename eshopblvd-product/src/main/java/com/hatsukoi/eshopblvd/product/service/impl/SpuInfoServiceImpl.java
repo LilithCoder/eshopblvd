@@ -1,5 +1,6 @@
 package com.hatsukoi.eshopblvd.product.service.impl;
 
+import com.github.pagehelper.PageHelper;
 import com.hatsukoi.eshopblvd.coupon.service.SkuFullReductionService;
 import com.hatsukoi.eshopblvd.coupon.service.SpuBoundsService;
 import com.hatsukoi.eshopblvd.product.dao.SpuInfoMapper;
@@ -9,6 +10,7 @@ import com.hatsukoi.eshopblvd.product.vo.*;
 import com.hatsukoi.eshopblvd.to.SkuReductionTO;
 import com.hatsukoi.eshopblvd.to.SpuBoundTO;
 import com.hatsukoi.eshopblvd.to.MemberPrice;
+import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.apache.dubbo.config.annotation.Reference;
@@ -22,6 +24,7 @@ import java.math.BigDecimal;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -62,6 +65,15 @@ public class SpuInfoServiceImpl implements SpuInfoService {
     @Reference(check = false, interfaceName = "com.hatsukoi.eshopblvd.coupon.service.SkuFullReductionService")
     SkuFullReductionService skuFullReductionService;
 
+    /**
+     * 保存spu基本信息
+     * 保存spu的描述图片
+     * 保存spu的商品图集（sku用）
+     * 保存spu的积分信息
+     * 保存spu的规格参数
+     * 保存当前spu对应的所有sku的信息
+     * @param vo
+     */
     @Override
     @Transactional
     public void insertNewSpu(SpuInsertVO vo) {
@@ -187,5 +199,62 @@ public class SpuInfoServiceImpl implements SpuInfoService {
     @Override
     public void insertBaseSpuInfo(SpuInfo spuInfo) {
         spuInfoMapper.insert(spuInfo);
+    }
+
+    /**
+     *
+     * @param params
+     * @return
+     */
+    @Override
+    public CommonPageInfo<SpuInfo> querySpuPage(Map<String, Object> params) {
+        // 分页参数
+        int pageNum = 1;
+        int pageSize = 10;
+        // 模糊搜索关键词
+        String keyword = "";
+        if (params.get("page") != null) {
+            pageNum = Integer.parseInt(params.get("page").toString());
+        }
+        if (params.get("limit") != null) {
+            pageSize = Integer.parseInt(params.get("limit").toString());
+        }
+        PageHelper.startPage(pageNum, pageSize);
+
+        // select * from pms_spu_info
+        // where (id = ? or spu_name like %?%) and
+        // publish_status = ? and
+        // brandId = ? and
+        // catelogId = ?
+        SpuInfoExample spuInfoExample = new SpuInfoExample();
+        SpuInfoExample.Criteria criteria = spuInfoExample.createCriteria();
+
+        // 检索条件：关键词
+        if (params.get("key") != null) {
+            keyword = params.get("key").toString();
+            if (!StringUtils.isEmpty(keyword)) {
+                criteria.andKeyFilter(keyword);
+            }
+        }
+
+        // 检索条件：商品状态
+        if (params.get("status") != null) {
+            int status = Integer.parseInt(params.get("status").toString());
+            criteria.andPublishStatusEqualTo((byte) status);
+        }
+
+        // 检索条件：品牌id
+        if (params.get("brandId") != null) {
+            Long brandId = Long.parseLong(params.get("brandId").toString());
+            criteria.andBrandIdEqualTo(brandId);
+        }
+
+        // 检索条件：分类id
+        if (params.get("catelogId") != null) {
+            Long catelogId = Long.parseLong(params.get("catelogId").toString());
+            criteria.andCatalogIdEqualTo(catelogId);
+        }
+        List<SpuInfo> spuInfos = spuInfoMapper.selectByExample(spuInfoExample);
+        return CommonPageInfo.convertToCommonPage(spuInfos);
     }
 }
