@@ -3042,8 +3042,107 @@ SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 
 #### spu管理
 
-新增【接口】：# spu检索
+##### 新增【接口】：# spu检索
 
 /product/spuinfo/list
 
 [18、spu检索 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/9LISLvy7)
+
+```java
+/**
+     *
+     * @param params
+     * @return
+     */
+    @Override
+    public CommonPageInfo<SpuInfo> querySpuPage(Map<String, Object> params) {
+        // 分页参数
+        int pageNum = 1;
+        int pageSize = 10;
+        // 模糊搜索关键词
+        String keyword = "";
+        if (params.get("page") != null) {
+            pageNum = Integer.parseInt(params.get("page").toString());
+        }
+        if (params.get("limit") != null) {
+            pageSize = Integer.parseInt(params.get("limit").toString());
+        }
+        PageHelper.startPage(pageNum, pageSize);
+
+        // select * from pms_spu_info
+        // where (id = ? or spu_name like %?%) and
+        // publish_status = ? and
+        // brandId = ? and
+        // catelogId = ?
+        SpuInfoExample spuInfoExample = new SpuInfoExample();
+        SpuInfoExample.Criteria criteria = spuInfoExample.createCriteria();
+
+        // 检索条件：关键词
+        if (params.get("key") != null) {
+            keyword = params.get("key").toString();
+            if (!StringUtils.isEmpty(keyword)) {
+                criteria.andKeyFilter(keyword);
+            }
+        }
+
+        // 检索条件：商品状态
+        if (params.get("status") != null) {
+            int status = Integer.parseInt(params.get("status").toString());
+            criteria.andPublishStatusEqualTo((byte) status);
+        }
+
+        // 检索条件：品牌id
+        if (params.get("brandId") != null) {
+            Long brandId = Long.parseLong(params.get("brandId").toString());
+            criteria.andBrandIdEqualTo(brandId);
+        }
+
+        // 检索条件：分类id
+        if (params.get("catelogId") != null) {
+            Long catelogId = Long.parseLong(params.get("catelogId").toString());
+            criteria.andCatalogIdEqualTo(catelogId);
+        }
+        List<SpuInfo> spuInfos = spuInfoMapper.selectByExample(spuInfoExample);
+        return CommonPageInfo.convertToCommonPage(spuInfos);
+    }
+```
+
+在SPU中，写出的日期数据都不符合规则
+
+```json
+"createTime": "2022-03-30T20:18:46.000+00:00",
+"updateTime": "2022-03-30T20:18:46.000+00:00"
+```
+
+想要符合规则，可以设置写出数据的规则：
+
+```yml
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+```
+
+#### sku管理
+
+##### 新增【接口】：sku检索
+
+`/product/skuinfo/list`
+
+[21、sku检索 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/ucirLq1D)
+
+```json
+{
+page: 1,//当前页码
+limit: 10,//每页记录数
+sidx: 'id',//排序字段
+order: 'asc/desc',//排序方式
+key: '华为',//检索关键字
+catelogId: 0,
+brandId: 0,
+min: 0,
+max: 0
+}
+```
+
+
+
+    

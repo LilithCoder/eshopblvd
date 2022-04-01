@@ -1,6 +1,9 @@
 package com.hatsukoi.eshopblvd.product.service;
 
 import com.hatsukoi.eshopblvd.product.entity.SkuInfo;
+import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
+
+import java.util.Map;
 
 /**
  * @author gaoweilin
@@ -8,4 +11,6 @@ import com.hatsukoi.eshopblvd.product.entity.SkuInfo;
  */
 public interface SkuInfoService {
     void insertSkuInfo(SkuInfo skuInfo);
+
+    CommonPageInfo<SkuInfo> querySkuPageByFilters(Map<String, Object> params);
 }
