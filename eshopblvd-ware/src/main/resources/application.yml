@@ -16,3 +16,7 @@ mybatis:
 
 server:
   port: 11000
+
+logging:
+  level:
+    com.hatsukoi: debug

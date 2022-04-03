@@ -3143,6 +3143,110 @@ max: 0
 }
 ```
 
+```java
+@Override
+    public CommonPageInfo<SkuInfo> querySkuPageByFilters(Map<String, Object> params) {
+        // 分页参数
+        int pageNum = 1;
+        int pageSize = 10;
+        // 模糊搜索关键词
+        String keyword = "";
+        if (params.get("page") != null) {
+            pageNum = Integer.parseInt(params.get("page").toString());
+        }
+        if (params.get("limit") != null) {
+            pageSize = Integer.parseInt(params.get("limit").toString());
+        }
+        if (params.get("key") != null) {
+            keyword = params.get("key").toString();
+        }
+        PageHelper.startPage(pageNum, pageSize);
+        SkuInfoExample skuInfoExample = new SkuInfoExample();
+        SkuInfoExample.Criteria criteria = skuInfoExample.createCriteria();
+
+        // 关键词检索
+        if (!StringUtils.isEmpty(keyword)) {
+            criteria.andKeywordFilter(keyword);
+        }
+
+        // 分类id检索
+        String catelogId = params.get("catelogId").toString();
+        if (!StringUtils.isEmpty(catelogId) && !catelogId.equalsIgnoreCase("0")) {
+            criteria.andCatalogIdEqualTo(Long.parseLong(catelogId));
+        }
+
+        // 品牌id检索
+        String brandId = params.get("brandId").toString();
+        if (!StringUtils.isEmpty(brandId) && !brandId.equalsIgnoreCase("0")) {
+            criteria.andBrandIdEqualTo(Long.parseLong(brandId));
+        }
+
+        // 价格区间检索
+        String min = params.get("min").toString();
+        if (!StringUtils.isEmpty(min)) {
+            criteria.andPriceGreaterThanOrEqualTo(new BigDecimal(min));
+        }
+        String max = params.get("max").toString();
+        if (!StringUtils.isEmpty(max)) {
+            BigDecimal maxValue = new BigDecimal(max);
+            // max值只有大于0时候才生效加入筛选条件，不设置的话默认为0
+            if (maxValue.compareTo(new BigDecimal("0")) == 1) {
+                criteria.andPriceLessThanOrEqualTo(new BigDecimal(max));
+            }
+        }
+        List<SkuInfo> skuInfos = skuInfoMapper.selectByExample(skuInfoExample);
+        return CommonPageInfo.convertToCommonPage(skuInfos);
+    }
+```
+
+### 库存系统
+
+#### 仓库维护
+
+##### 新增【接口】：查询仓库列表
+
+`/ware/wareinfo/list`
+
+[01、仓库列表 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/mZgdqOWe)
+
+根据关键词来模糊查询
+
+```sql
+select * from wms_ware_info
+where
+(name like %#{keyword}%) or
+(address like %#{keyword}% or
+(areacode like %#{keyword}%) or
+(id=#{keyword})
+```
+
+问题处理
+
+```textile
+Description:
+
+Field wareInfoMapper in com.hatsukoi.eshopblvd.ware.service.impl.WareInfoServiceImpl required a bean of type 'com.hatsukoi.eshopblvd.ware.dao.WareInfoMapper' that could not be found.
+
+The injection point has the following annotations:
+	- @org.springframework.beans.factory.annotation.Autowired(required=true)
 
 
-    
+Action:
+
+Consider defining a bean of type 'com.hatsukoi.eshopblvd.ware.dao.WareInfoMapper' in your configuration.
+
+```
+
+Autowired 根据类型去spring容器找，找不到那个类，就会报错
+
+启动类加上注解
+
+```java
+@MapperScan("com.hatsukoi.eshopblvd.ware.dao")
+```
+
+![](./docs/assets/72.png)
+
+第一个criteria建立的时候会加入oredCriteria
+
+后续criteria建立的时候不会加入oredCriteria，所以要or(criteria)手动加入
