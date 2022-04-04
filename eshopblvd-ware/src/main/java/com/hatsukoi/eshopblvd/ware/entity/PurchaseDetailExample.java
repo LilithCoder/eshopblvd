@@ -614,6 +614,11 @@ public class PurchaseDetailExample {
             addCriterion("status not between", value1, value2, "status");
             return (Criteria) this;
         }
+
+        public Criteria andKeyFilter(String key) {
+            addCriterion("(purchase_id='" + key + "' or sku_id='" + key + "')");
+            return (Criteria) this;
+        }
     }
 
     /**

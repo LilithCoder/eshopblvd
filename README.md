@@ -3207,6 +3207,8 @@ max: 0
 
 `/ware/wareinfo/list`
 
+表：wms_ware_info
+
 [01、仓库列表 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/mZgdqOWe)
 
 根据关键词来模糊查询
@@ -3250,3 +3252,80 @@ Autowired 根据类型去spring容器找，找不到那个类，就会报错
 第一个criteria建立的时候会加入oredCriteria
 
 后续criteria建立的时候不会加入oredCriteria，所以要or(criteria)手动加入
+
+#### 商品维护
+
+##### 新增【接口】：# 查询商品库存
+
+[02、查询商品库存 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/hwXrEXBZ)
+
+
+
+#### 采购单维护
+
+![](./docs/assets/73.png)
+
+##### 新增【接口】：#  查询采购需求
+
+[03、查询采购需求 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/Ss4zsV7R)
+
+采购需求表: `wms_purchase_detail`
+
+采购需求status：新建、已分配、正在采购、已完成、采购失败
+
+* 检索采购需求  
+* 检索条件：  
+* 1. 关键词匹配采购单id或采购商品id  
+* 2. 匹配采购需求状态和仓库id
+
+```json
+{
+    page: 1,//当前页码
+    limit: 10,//每页记录数
+    key: '华为',//检索关键字
+    status: 0,//状态
+    wareId: 1,//仓库id
+}
+```
+
+```sql
+select * from wms_purchase_detail
+where
+(purchase_id=key or sku_id=key) and
+(status=status) and
+(ware_id=wareId)
+```
+
+
+
+##### 新增【接口】：# 合并采购需求
+
+[04、合并采购需求 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/cUlv9QvK)
+
+采购单里包含了采购需求，就好比一个订单里需要定哪些货
+
+##### 新增【接口】：查询未领取的采购单
+
+`/ware/purchase/unreceive/list`
+
+采购单表: wms_purchase
+
+合并采购单前先查询未接收的采购单（新建的、指派了采购人员但没接收去采购的）
+
+采购单status：新建0、已分配1、已领取(采购人员已出发，该采购单不能添加新内容了)、已完成、有异常
+
+##### 新增【接口】：# 领取采购单
+
+`/ware/purchase/received`
+
+[06、领取采购单 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/vXMBBgw1)
+
+某个人领取了采购单后，先看采购单是否处于未分配状态，只有采购单是新建或以领取状态时，才更新采购单的状态
+
+##### 新增【接口】：# 完成采购
+
+`/ware/purchase/done`
+
+[07、完成采购 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/cTQHGXbK)
+
+完成采购，在完成采购过程中，需要涉及到设置SKU的name信息到仓库中，这是通过远程调用“gulimall-product”来实现根据sku_id查询得到sku_name的，如果这个过程发生了异常，事务不想要回滚，目前采用的方式是通过捕获异常的方式，防止事务回滚
