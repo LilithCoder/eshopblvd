@@ -1,13 +1,14 @@
 package com.hatsukoi.eshopblvd.ware.controller;
 
+import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
+import com.hatsukoi.eshopblvd.ware.entity.Purchase;
 import com.hatsukoi.eshopblvd.ware.service.PurchaseService;
 import com.hatsukoi.eshopblvd.ware.vo.MergeVO;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 /**
  * 采购单Controller
@@ -33,5 +34,16 @@ public class PurchaseController {
     public CommonResponse merge(@RequestBody MergeVO mergeVO) {
         purchaseService.mergePurchaseItems(mergeVO);
         return CommonResponse.success();
+    }
+
+    /**
+     * 查询所有还尚在新建、已分配状态的采购单
+     * 就是说分配人员还没开始处理
+     * @return
+     */
+    @RequestMapping("/unreceive/list")
+    public CommonResponse unreceiveList(@RequestParam Map<String, Object> params) {
+        CommonPageInfo<Purchase> queyPage= purchaseService.queryUnreceivePurchases(params);
+        return CommonResponse.success().setData(queyPage);
     }
 }

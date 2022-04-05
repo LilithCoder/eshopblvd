@@ -3399,6 +3399,18 @@ xml映射文件批量更新
 
 采购单status：新建0、已分配1、已领取(采购人员已出发，该采购单不能添加新内容了)、已完成、有异常
 
+* 查询所有还尚在新建、已分配状态的采购单  
+* 就是说分配人员还没开始处理
+
+```sql
+select * from wms_purchase
+where
+status = 0 or
+status = 1
+```
+
+
+
 ##### 新增【接口】：# 领取采购单
 
 `/ware/purchase/received`

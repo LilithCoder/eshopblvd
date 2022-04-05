@@ -1,18 +1,22 @@
 package com.hatsukoi.eshopblvd.ware.service.impl;
 
 import com.hatsukoi.eshopblvd.constant.WareConstant;
+import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import com.hatsukoi.eshopblvd.ware.dao.PurchaseMapper;
 import com.hatsukoi.eshopblvd.ware.entity.Purchase;
 import com.hatsukoi.eshopblvd.ware.entity.PurchaseDetail;
+import com.hatsukoi.eshopblvd.ware.entity.PurchaseExample;
 import com.hatsukoi.eshopblvd.ware.service.PurchaseDetailService;
 import com.hatsukoi.eshopblvd.ware.service.PurchaseService;
 import com.hatsukoi.eshopblvd.ware.vo.MergeVO;
+import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -82,5 +86,33 @@ public class PurchaseServiceImpl implements PurchaseService {
             return purchaseDetail;
         }).collect(Collectors.toList());
         purchaseDetailService.batchUpdate(collect);
+    }
+
+    @Override
+    public CommonPageInfo<Purchase> queryUnreceivePurchases(Map<String, Object> params) {
+        int pageNum = 1;
+        int pageSize = 10;
+        String pageNumStr = params.get("page").toString();
+        if (!StringUtils.isEmpty(pageNumStr) && StringUtils.isNumeric(pageNumStr)) {
+            pageNum = Integer.parseInt(pageNumStr);
+        }
+        String pageSizeStr = params.get("limit").toString();
+        if (!StringUtils.isEmpty(pageSizeStr) && StringUtils.isNumeric(pageSizeStr)) {
+            pageSize = Integer.parseInt(pageSizeStr);
+        }
+        // select * from wms_purchase
+        // where
+        // status = 0 or
+        // status = 1
+        PurchaseExample purchaseExample = new PurchaseExample();
+        PurchaseExample.Criteria criteria = purchaseExample.createCriteria();
+        criteria.andStatusEqualTo(WareConstant.PurchaseStatusEnum.CREATED.getCode());
+        PurchaseExample.Criteria criteria1 = purchaseExample.createCriteria();
+        criteria1.andStatusEqualTo(WareConstant.PurchaseStatusEnum.ASSIGNED.getCode());
+        purchaseExample.or(criteria1);
+
+        List<Purchase> purchases = purchaseMapper.selectByExample(purchaseExample);
+
+        return CommonPageInfo.convertToCommonPage(purchases);
     }
 }
