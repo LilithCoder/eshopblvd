@@ -14,4 +14,6 @@ public interface PurchaseDetailService {
     CommonPageInfo<PurchaseDetail> queryPage(Map<String, Object> params);
 
     void batchUpdate(List<PurchaseDetail> collect);
+
+    List<PurchaseDetail> selectPurchaseDetailsByIds(List<Long> purchaseIds);
 }

@@ -85,4 +85,18 @@ public class PurchaseDetailServiceImpl implements PurchaseDetailService {
     public void batchUpdate(List<PurchaseDetail> collect) {
         purchaseDetailMapper.batchUpdateSelective(collect);
     }
+
+    /**
+     * 根据采购单id列表来查询相关的采购需求
+     * @param purchaseIds
+     * @return
+     */
+    @Override
+    public List<PurchaseDetail> selectPurchaseDetailsByIds(List<Long> purchaseIds) {
+        PurchaseDetailExample purchaseDetailExample = new PurchaseDetailExample();
+        PurchaseDetailExample.Criteria criteria = purchaseDetailExample.createCriteria();
+        criteria.andPurchaseIdIn(purchaseIds);
+        List<PurchaseDetail> purchaseDetails = purchaseDetailMapper.selectByExample(purchaseDetailExample);
+        return purchaseDetails;
+    }
 }

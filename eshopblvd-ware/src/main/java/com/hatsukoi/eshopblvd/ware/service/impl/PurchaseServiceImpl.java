@@ -115,4 +115,40 @@ public class PurchaseServiceImpl implements PurchaseService {
 
         return CommonPageInfo.convertToCommonPage(purchases);
     }
+
+    @Override
+    @Transactional
+    public void received(List<Long> ids) {
+        // 1. 改变新建or已分配的采购单为已领取
+        PurchaseExample purchaseExample = new PurchaseExample();
+        PurchaseExample.Criteria criteria = purchaseExample.createCriteria();
+        criteria.andIdIn(ids);
+        List<Purchase> purchases = purchaseMapper.selectByExample(purchaseExample);
+        List<Purchase> collect = purchases.stream().filter(purchase -> {
+            if (purchase.getStatus() == WareConstant.PurchaseStatusEnum.CREATED.getCode() ||
+                    purchase.getStatus() == WareConstant.PurchaseStatusEnum.ASSIGNED.getCode()
+            ) {
+                return true;
+            } else {
+                return false;
+            }
+        }).map(purchase -> {
+            purchase.setStatus(WareConstant.PurchaseStatusEnum.RECEIVE.getCode());
+            purchase.setUpdateTime(new Date());
+            return purchase;
+        }).collect(Collectors.toList());
+        // 2. 批量更新采购单
+        purchaseMapper.batchUpdate(collect);
+        // 3. 改变这些采购单内相关采购需求的状态
+        List<Long> purchaseIds = collect.stream().map(purchase -> {
+            return purchase.getId();
+        }).collect(Collectors.toList());
+        List<PurchaseDetail> list = purchaseDetailService.selectPurchaseDetailsByIds(purchaseIds);
+        List<PurchaseDetail> collect1 = list.stream().map(purchaseDetail -> {
+            purchaseDetail.setStatus(WareConstant.PurchaseDetailStatusEnum.BUYING.getCode());
+            return purchaseDetail;
+        }).collect(Collectors.toList());
+        // 4. 批量更新采购需求
+        purchaseDetailService.batchUpdate(collect1);
+    }
 }

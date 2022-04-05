@@ -4,6 +4,7 @@ import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import com.hatsukoi.eshopblvd.ware.entity.Purchase;
 import com.hatsukoi.eshopblvd.ware.vo.MergeVO;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -14,4 +15,6 @@ public interface PurchaseService {
     void mergePurchaseItems(MergeVO mergeVO);
 
     CommonPageInfo<Purchase> queryUnreceivePurchases(Map<String, Object> params);
+
+    void received(List<Long> ids);
 }

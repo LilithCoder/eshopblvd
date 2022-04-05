@@ -8,6 +8,7 @@ import com.hatsukoi.eshopblvd.ware.vo.MergeVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -33,6 +34,17 @@ public class PurchaseController {
     @PostMapping("/merge")
     public CommonResponse merge(@RequestBody MergeVO mergeVO) {
         purchaseService.mergePurchaseItems(mergeVO);
+        return CommonResponse.success();
+    }
+
+    /**
+     * 领取采购单
+     * @param ids
+     * @return
+     */
+    @PostMapping("/received")
+    public CommonResponse received(@RequestBody List<Long> ids) {
+        purchaseService.received(ids);
         return CommonResponse.success();
     }
 
