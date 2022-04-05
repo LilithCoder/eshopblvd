@@ -1,7 +1,9 @@
 package com.hatsukoi.eshopblvd.product.controller;
 
 import com.hatsukoi.eshopblvd.product.entity.Attr;
+import com.hatsukoi.eshopblvd.product.entity.ProductAttrValue;
 import com.hatsukoi.eshopblvd.product.service.AttrService;
+import com.hatsukoi.eshopblvd.product.service.ProductAttrValueService;
 import com.hatsukoi.eshopblvd.product.vo.AttrRespVO;
 import com.hatsukoi.eshopblvd.product.vo.AttrVO;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
@@ -10,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -24,6 +27,9 @@ import java.util.Map;
 public class AttrController {
     @Autowired
     AttrService attrService;
+
+    @Autowired
+    ProductAttrValueService productAttrValueService;
 
     /**
      * 新增属性
@@ -59,6 +65,35 @@ public class AttrController {
     }
 
     /**
+     * 修改spu规格
+     * @param spuId
+     * @param productAttrValueList
+     * [{
+     * 	"attrId": 7,
+     * 	"attrName": "入网型号",
+     * 	"attrValue": "LIO-AL00",
+     * 	"quickShow": 1
+     * }, {
+     * 	"attrId": 14,
+     * 	"attrName": "机身材质工艺",
+     * 	"attrValue": "玻璃",
+     * 	"quickShow": 0
+     * }, {
+     * 	"attrId": 16,
+     * 	"attrName": "CPU型号",
+     * 	"attrValue": "HUAWEI Kirin 980",
+     * 	"quickShow": 1
+     * }]
+     * @return
+     */
+    @PostMapping("/update/{spuId}")
+    public CommonResponse updateSpuAttr(@PathVariable("spuId") Long spuId,
+                                        @RequestBody List<ProductAttrValue> productAttrValueList) {
+        productAttrValueService.updateSpuAttr(spuId, productAttrValueList);
+        return CommonResponse.success();
+    }
+
+    /**
      * 根据 分类id 匹配属性id或者模糊查询所属的属性，(销售属性、或者基本属性)
      * @param params
      * {
@@ -87,5 +122,14 @@ public class AttrController {
     public CommonResponse attrDetail(@PathVariable("attrId") Long attrId) {
         AttrRespVO attrRespVO = attrService.getAttrDetail(attrId);
         return CommonResponse.success().setData(attrRespVO);
+    }
+
+    /**
+     * 获取某spu的规格参数
+     */
+    @GetMapping("/base/listforspu/{spuId}")
+    public CommonResponse baseAttrListForSpu(@PathVariable("spuId") Long spuId) {
+        List<ProductAttrValue> productAttrValueList = productAttrValueService.selectBaseAttrListForSpu(spuId);
+        return CommonResponse.success().setData(productAttrValueList);
     }
 }

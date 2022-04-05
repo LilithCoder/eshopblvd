@@ -3129,6 +3129,60 @@ SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
     date-format: yyyy-MM-dd HH:mm:ss
 ```
 
+##### 新增【接口】：获取spu规格
+
+[22、获取spu规格 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/GhhJhkg7)
+
+`/product/attr/base/listforspu/{spuId}`
+
+```json
+{
+	"msg": "success",
+	"code": 0,
+	"data": [{
+		"id": 43,
+		"spuId": 11,
+		"attrId": 7,
+		"attrName": "入网型号",
+		"attrValue": "LIO-AL00",
+		"attrSort": null,
+		"quickShow": 1
+	}]
+}
+```
+
+##### 新增【接口】：修改spu规格
+
+[23、修改商品规格 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/GhnJ0L85)
+
+`/product/attr/update/{spuId}`
+
+// 删除这个spuId之前对应的所有属性  
+// 批量插入属性
+
+```json
+[{
+	"attrId": 7,
+	"attrName": "入网型号",
+	"attrValue": "LIO-AL00",
+	"quickShow": 1
+}, {
+	"attrId": 14,
+	"attrName": "机身材质工艺",
+	"attrValue": "玻璃",
+	"quickShow": 0
+}, {
+	"attrId": 16,
+	"attrName": "CPU型号",
+	"attrValue": "HUAWEI Kirin 980",
+	"quickShow": 1
+}]
+```
+
+
+
+
+
 #### sku管理
 
 ##### 新增【接口】：sku检索
@@ -3435,8 +3489,8 @@ status = 1
 
 完成采购，在完成采购过程中，需要涉及到设置SKU的name信息到仓库中，这是通过远程调用“gulimall-product”来实现根据sku_id查询得到sku_name的，如果这个过程发生了异常，事务不想要回滚，目前采用的方式是通过捕获异常的方式，防止事务回滚
 
-
-
 1. 变更订购需求的状态：如果是已完成，那就入库且变更状态，如果有一个采购失败，那就保持采购失败状态且标记这个采购单的状态为有异常
+   
+   1.1 `wms_ware_sku`加库存，如果已经有记录就加库存数量，没有的话插入记录
 
 2. 根据标记位来变更订购单的状态
