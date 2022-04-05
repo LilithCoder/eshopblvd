@@ -99,4 +99,9 @@ public class PurchaseDetailServiceImpl implements PurchaseDetailService {
         List<PurchaseDetail> purchaseDetails = purchaseDetailMapper.selectByExample(purchaseDetailExample);
         return purchaseDetails;
     }
+
+    @Override
+    public PurchaseDetail getPurchaseDetailById(Long itemId) {
+        return purchaseDetailMapper.selectByPrimaryKey(itemId);
+    }
 }

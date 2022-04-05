@@ -5,6 +5,7 @@ import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import com.hatsukoi.eshopblvd.ware.entity.Purchase;
 import com.hatsukoi.eshopblvd.ware.service.PurchaseService;
 import com.hatsukoi.eshopblvd.ware.vo.MergeVO;
+import com.hatsukoi.eshopblvd.ware.vo.PurchaseDoneVo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -45,6 +46,20 @@ public class PurchaseController {
     @PostMapping("/received")
     public CommonResponse received(@RequestBody List<Long> ids) {
         purchaseService.received(ids);
+        return CommonResponse.success();
+    }
+
+    /**
+     * 完成采购
+     * @param doneVo
+     * {
+     *      id: 123,//采购单id
+     *      items: [{itemId:1,status:4,reason:""}]//完成/失败的需求详情
+     * }
+     * @return
+     */
+    public CommonResponse done(@RequestBody PurchaseDoneVo doneVo) {
+        purchaseService.done(doneVo);
         return CommonResponse.success();
     }
 

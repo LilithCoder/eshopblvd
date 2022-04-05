@@ -16,4 +16,6 @@ public interface PurchaseDetailService {
     void batchUpdate(List<PurchaseDetail> collect);
 
     List<PurchaseDetail> selectPurchaseDetailsByIds(List<Long> purchaseIds);
+
+    PurchaseDetail getPurchaseDetailById(Long itemId);
 }
