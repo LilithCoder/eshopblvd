@@ -7,6 +7,7 @@ import com.hatsukoi.eshopblvd.ware.entity.PurchaseDetail;
 import com.hatsukoi.eshopblvd.ware.entity.PurchaseDetailExample;
 import com.hatsukoi.eshopblvd.ware.service.PurchaseDetailService;
 import org.apache.commons.lang.StringUtils;
+import org.apache.ibatis.annotations.Param;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -78,5 +79,10 @@ public class PurchaseDetailServiceImpl implements PurchaseDetailService {
         List<PurchaseDetail> purchaseDetails = purchaseDetailMapper.selectByExample(purchaseDetailExample);
 
         return CommonPageInfo.convertToCommonPage(purchaseDetails);
+    }
+
+    @Override
+    public void batchUpdate(List<PurchaseDetail> collect) {
+        purchaseDetailMapper.batchUpdateSelective(collect);
     }
 }

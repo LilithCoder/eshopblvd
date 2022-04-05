@@ -302,4 +302,30 @@
       status = #{status,jdbcType=INTEGER}
     where id = #{id,jdbcType=BIGINT}
   </update>
+  <update id="batchUpdateSelective">
+    <foreach collection="collect" item="item" index="index" separator=";">
+      UPDATE `wms_purchase_detail`
+      <trim prefix="set" suffixOverrides=",">
+        <if test="item.purchaseId != null" >
+          purchase_id = #{item.purchaseId,jdbcType=BIGINT},
+        </if>
+        <if test="item.skuId != null" >
+          sku_id = #{item.skuId,jdbcType=BIGINT},
+        </if>
+        <if test="item.skuNum != null" >
+          sku_num = #{item.skuNum,jdbcType=INTEGER},
+        </if>
+        <if test="item.skuPrice != null" >
+          sku_price = #{item.skuPrice,jdbcType=DECIMAL},
+        </if>
+        <if test="item.wareId != null" >
+          ware_id = #{item.wareId,jdbcType=BIGINT},
+        </if>
+        <if test="item.status != null" >
+          status = #{item.status,jdbcType=INTEGER},
+        </if>
+      </trim>
+      where id = #{item.id,jdbcType=BIGINT}
+    </foreach>
+  </update>
 </mapper>

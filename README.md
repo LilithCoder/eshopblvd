@@ -320,6 +320,8 @@ https://github.com/mybatis/spring-boot-starter/wiki/Quick-Start
 
 [# Spring Boot入门系列（十一）如何整合Mybatis](https://mp.weixin.qq.com/s?__biz=MzAxMTY5NDAwOA==&mid=2651415559&idx=1&sn=8b8f6aeaaee93923fd0fd6f90fa8ac74&chksm=8040fed0b73777c62886f7d932fbac447b6f7b482cffd650fcacc93f9ae03e451a55d8a32554&scene=21#wechat_redirect)
 
+[最详细的MyBatis批量添加、更新、删除实战篇（日常开发必看） - 掘金](https://juejin.cn/post/6974035016632238093)
+
 ## mybatis分页插件
 
 官方docs：
@@ -3001,9 +3003,9 @@ public class SpuInsertVO {
 4. [MyBatis + MySQL返回插入成功后的主键id](https://www.cnblogs.com/han-1034683568/p/8305122.html)
    
    ```xml
-    <insert id="insertArticle" useGeneratedKeys="true" keyProperty="id" parameterType="Article">
-   insert into ssm_article(article_title,article_create_date,article_content,add_name)
-   values(#{articleTitle},#{articleCreateDate},#{articleContent},#{addName})
+   <insert id="insertArticle" useGeneratedKeys="true" keyProperty="id" parameterType="Article">
+       insert into ssm_article(article_title,article_create_date,article_content,add_name)
+       values(#{articleTitle},#{articleCreateDate},#{articleContent},#{addName})
    </insert>
    ```
 
@@ -3012,6 +3014,12 @@ public class SpuInsertVO {
 ```java
 articleDao.insertArticle(article);
 Assert.assertTrue(article.getId()!=null);
+```
+
+```xml
+    <selectKey keyProperty="id" order="BEFORE" resultType="java.lang.Long">
+      SELECT LAST_INSERT_ID()
+    </selectKey>
 ```
 
 TODO: p91 - 05:20（不重要，可后续搞）spu的描述
@@ -3230,13 +3238,12 @@ Description:
 Field wareInfoMapper in com.hatsukoi.eshopblvd.ware.service.impl.WareInfoServiceImpl required a bean of type 'com.hatsukoi.eshopblvd.ware.dao.WareInfoMapper' that could not be found.
 
 The injection point has the following annotations:
-	- @org.springframework.beans.factory.annotation.Autowired(required=true)
+    - @org.springframework.beans.factory.annotation.Autowired(required=true)
 
 
 Action:
 
 Consider defining a bean of type 'com.hatsukoi.eshopblvd.ware.dao.WareInfoMapper' in your configuration.
-
 ```
 
 Autowired 根据类型去spring容器找，找不到那个类，就会报错
@@ -3258,8 +3265,6 @@ Autowired 根据类型去spring容器找，找不到那个类，就会报错
 ##### 新增【接口】：# 查询商品库存
 
 [02、查询商品库存 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/hwXrEXBZ)
-
-
 
 #### 采购单维护
 
@@ -3296,13 +3301,93 @@ where
 (ware_id=wareId)
 ```
 
-
-
 ##### 新增【接口】：# 合并采购需求
 
 [04、合并采购需求 - 谷粒商城](https://easydoc.net/s/78237135/ZUqEdvA4/cUlv9QvK)
 
+[最详细的MyBatis批量添加、更新、删除实战篇（日常开发必看） - 掘金](https://juejin.cn/post/6974035016632238093)
+
 采购单里包含了采购需求，就好比一个订单里需要定哪些货
+
+* 合并采购需求  
+* 将采购需求合并到指定的采购单，如果没有指定采购单，则新建一个并合并其中  
+* 1. 新建或用原来的采购单，并更新采购单的更新时间  
+* 2. 批量更新采购需求的状态和采购单id，表明已经被合并到某采购单  
+* @param mergeVO  
+* {  
+* purchaseId: 1, // 目标合并的采购单id  
+* items:[1,2,3,4] // 需要合并的采购需求  
+* }
+
+xml映射文件批量更新
+
+```xml
+  <update id="batchUpdate">
+    <foreach collection="collect" item="item" index="index" separator=";">
+      UPDATE `wms_purchase_detail`
+      <set>
+        <if test="item.purchaseId != null" >
+          purchaseId = #{item.purchaseId},
+        </if>
+        <if test="item.skuId != null" >
+          skuId = #{item.skuId},
+        </if>
+        <if test="item.skuNum != null" >
+          skuNum = #{item.skuNum},
+        </if>
+        <if test="item.skuPrice != null" >
+          skuPrice = #{item.skuPrice},
+        </if>
+        <if test="item.wareId != null" >
+          wareId = #{item.wareId},
+        </if>
+        <if test="item.status != null" >
+          status = #{item.status},
+        </if>
+      </set>
+      where id = #{item.id}
+    </foreach>
+  </update>
+```
+
+问题1: [mybatis The error occurred while setting parameters 报错 - 编程知识](https://cdmana.com/2021/03/20210311175619451Z.html)
+
+动态sql 拼接语句里多写了个逗号
+
+[check the manual that corresponds to your MySQL server version for the right syntax to use near_嘿;-)翔�的博客-CSDN博客](https://blog.csdn.net/cdliker/article/details/106815722)
+
+配置文件里的datasource.url没有开启一次执行多条语句功能，但是在MyBatis映射文件里的元素里却执行了多条语句，MySQL报错的位置总是恰好在第二条语句开始的地方也证明了这一点。要解决这个问题，只要在配置文件的datasource.url的后面添加&allowMultiQueries=true就可以了
+
+```xml
+  <update id="batchUpdateSelective">
+    <foreach collection="collect" item="item" index="index" separator=";">
+      UPDATE `wms_purchase_detail`
+      <trim prefix="set" suffixOverrides=",">
+        <if test="item.purchaseId != null" >
+          purchase_id = #{item.purchaseId,jdbcType=BIGINT},
+        </if>
+        <if test="item.skuId != null" >
+          sku_id = #{item.skuId,jdbcType=BIGINT},
+        </if>
+        <if test="item.skuNum != null" >
+          sku_num = #{item.skuNum,jdbcType=INTEGER},
+        </if>
+        <if test="item.skuPrice != null" >
+          sku_price = #{item.skuPrice,jdbcType=DECIMAL},
+        </if>
+        <if test="item.wareId != null" >
+          ware_id = #{item.wareId,jdbcType=BIGINT},
+        </if>
+        <if test="item.status != null" >
+          status = #{item.status,jdbcType=INTEGER},
+        </if>
+      </trim>
+      where id = #{item.id,jdbcType=BIGINT}
+    </foreach>
+  </update>
+```
+
+
 
 ##### 新增【接口】：查询未领取的采购单
 

@@ -93,4 +93,6 @@ public interface PurchaseDetailMapper {
      * @mbg.generated
      */
     int updateByPrimaryKey(PurchaseDetail record);
+
+    void batchUpdateSelective(@Param("collect") List<PurchaseDetail> collect);
 }
