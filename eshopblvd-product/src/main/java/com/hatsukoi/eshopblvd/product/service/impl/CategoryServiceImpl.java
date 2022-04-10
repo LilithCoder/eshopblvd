@@ -5,13 +5,12 @@ import com.hatsukoi.eshopblvd.product.entity.Category;
 import com.hatsukoi.eshopblvd.product.entity.CategoryExample;
 import com.hatsukoi.eshopblvd.product.service.CategoryBrandRelationService;
 import com.hatsukoi.eshopblvd.product.service.CategoryService;
+import com.hatsukoi.eshopblvd.product.vo.CatalogVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -116,6 +115,70 @@ public class CategoryServiceImpl implements CategoryService {
         findPath(catelogId, path);
         Collections.reverse(path);
         return path.toArray(new Long[path.size()]);
+    }
+
+    /**
+     * 获取首页的分类菜单
+     * @return
+     */
+    @Override
+    public Map<Long, CatalogVO> getHomepageCatalog() {
+        Map<Long, CatalogVO> collect = null;
+
+        // 获取一级分类
+        List<Category> category1List = getChildren(0L, 0);
+
+        // 一级分类id为key，CatalogVO为value
+        if (category1List != null && category1List.size() > 0) {
+            collect = category1List.stream().collect(Collectors.toMap(category -> {
+                return category.getCatId();
+            }, category -> {
+                CatalogVO catalogVO = new CatalogVO();
+                // 每个一级分类找到其所有二级分类
+                List<Category> category2List = getChildren(category.getCatId(), category.getCatLevel());
+                List<CatalogVO.Catalog2VO> catalog2VOList = null;
+                if (category2List != null && category2List.size() > 0) {
+                    catalog2VOList = category2List.stream().map(category2 -> {
+                        CatalogVO.Catalog2VO catalog2VO = new CatalogVO.Catalog2VO();
+                        // 每个二级分类找到其所有三级分类
+                        List<Category> category3List = getChildren(category2.getCatId(), category2.getCatLevel());
+                        List<CatalogVO.Catalog3VO> catalog3VOList = null;
+                        if (category3List != null && category3List.size() > 0) {
+                            catalog3VOList = category3List.stream().map(category3 -> {
+                                CatalogVO.Catalog3VO catalog3VO = new CatalogVO.Catalog3VO();
+                                catalog3VO.setCatalog3Id(category3.getCatId());
+                                catalog3VO.setCatalog3Name(category3.getName());
+                                return catalog3VO;
+                            }).collect(Collectors.toList());
+                        }
+                        catalog2VO.setCatalog2Id(category2.getCatId());
+                        catalog2VO.setCatalog2Name(category2.getName());
+                        catalog2VO.setCatalog3list(catalog3VOList);
+                        return catalog2VO;
+                    }).collect(Collectors.toList());
+                }
+                catalogVO.setCatalog1Id(category.getCatId());
+                catalogVO.setCatalog1Name(category.getName());
+                catalogVO.setCatalog2list(catalog2VOList);
+                return catalogVO;
+            }));
+        }
+        return collect;
+    }
+
+    /**
+     * 根据当前分类的id和level来获取该分类的子分类们
+     * @param parentId
+     * @param parentLevel
+     * @return
+     */
+    private List<Category> getChildren(Long parentId, Integer parentLevel) {
+        CategoryExample example = new CategoryExample();
+        CategoryExample.Criteria criteria = example.createCriteria();
+        criteria.andParentCidEqualTo(parentId);
+        criteria.andCatLevelEqualTo(parentLevel + 1);
+        List<Category> categoryList = categoryMapper.selectByExample(example);
+        return categoryList;
     }
 
     /**

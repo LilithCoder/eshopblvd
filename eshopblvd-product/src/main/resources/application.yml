@@ -12,6 +12,8 @@ spring:
     name: eshopblvd-product
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
+  thymeleaf:
+    cache: false
 
 mybatis:
   mapper-locations: classpath*:com/hatsukoi/eshopblvd/product/mapper/*.xml
