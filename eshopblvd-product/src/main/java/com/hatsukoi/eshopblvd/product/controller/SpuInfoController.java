@@ -6,10 +6,7 @@ import com.hatsukoi.eshopblvd.product.vo.SpuInsertVO;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
@@ -31,6 +28,17 @@ public class SpuInfoController {
     @RequestMapping("/insert")
     public CommonResponse insert(@RequestBody SpuInsertVO vo) {
         spuInfoService.insertNewSpu(vo);
+        return CommonResponse.success();
+    }
+
+    /**
+     * 商品上架
+     * @param spuId
+     * @return
+     */
+    @PostMapping("/{spuId}/up")
+    public CommonResponse spuUp(@PathVariable("spuId") Long spuId) {
+        spuInfoService.spuUp(spuId);
         return CommonResponse.success();
     }
 

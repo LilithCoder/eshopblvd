@@ -96,4 +96,18 @@ public class SkuInfoServiceImpl implements SkuInfoService {
         List<SkuInfo> skuInfos = skuInfoMapper.selectByExample(skuInfoExample);
         return CommonPageInfo.convertToCommonPage(skuInfos);
     }
+
+    /**
+     * 根据spu查出所有sku
+     * @param spuId
+     * @return
+     */
+    @Override
+    public List<SkuInfo> getSkusBySpuId(Long spuId) {
+        SkuInfoExample skuInfoExample = new SkuInfoExample();
+        SkuInfoExample.Criteria criteria = skuInfoExample.createCriteria();
+        criteria.andSpuIdEqualTo(spuId);
+        List<SkuInfo> skuInfos = skuInfoMapper.selectByExample(skuInfoExample);
+        return skuInfos;
+    }
 }

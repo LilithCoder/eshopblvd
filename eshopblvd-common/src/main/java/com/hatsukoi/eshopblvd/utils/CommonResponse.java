@@ -2,8 +2,10 @@ package com.hatsukoi.eshopblvd.utils;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
+import org.apache.commons.lang.StringUtils;
 import org.apache.http.HttpStatus;
 
+import java.lang.reflect.Field;
 import java.util.HashMap;
 
 /**
@@ -82,10 +84,43 @@ public class CommonResponse extends HashMap<String, Object> {
     }
 
     /**
+     * 设置响应消息
+     *
+     * @param data
+     */
+    public CommonResponse setMsg(Object data) {
+        put("msg", data);
+        return this;
+    }
+
+    /**
      * 获取返回码
      * @return
      */
     public int getCode() {
         return (int) get("code");
+    }
+
+    /**
+     * 返回的map对象转换为CommonResponse
+     * @return
+     */
+    public static CommonResponse convertToResp(HashMap<String, Object> map) {
+        CommonResponse resp = null;
+        int code = Integer.parseInt(map.get("code").toString());
+        if (code == HttpStatus.SC_OK) {
+            resp = new CommonResponse(true);
+        } else {
+            resp = new CommonResponse(false);
+        }
+        String msg = map.get("msg").toString();
+        if (!StringUtils.isEmpty(msg)) {
+            resp.setMsg(msg);
+        }
+        Object data = map.get("data");
+        if (data != null) {
+            resp.setData(data);
+        }
+        return resp;
     }
 }

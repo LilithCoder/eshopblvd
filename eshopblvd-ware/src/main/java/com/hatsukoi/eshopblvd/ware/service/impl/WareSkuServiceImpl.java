@@ -1,19 +1,24 @@
 package com.hatsukoi.eshopblvd.ware.service.impl;
 
+import com.hatsukoi.eshopblvd.to.SkuHasStockVO;
+import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import com.hatsukoi.eshopblvd.ware.dao.WareSkuMapper;
 import com.hatsukoi.eshopblvd.ware.entity.WareSku;
 import com.hatsukoi.eshopblvd.ware.entity.WareSkuExample;
+import com.hatsukoi.eshopblvd.ware.service.WareSkuRPCService;
 import com.hatsukoi.eshopblvd.ware.service.WareSkuService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * @author gaoweilin
  * @date 2022/04/06 Wed 2:09 AM
  */
 @Service
+@org.apache.dubbo.config.annotation.Service
 public class WareSkuServiceImpl implements WareSkuService {
     @Autowired
     private WareSkuMapper wareSkuMapper;

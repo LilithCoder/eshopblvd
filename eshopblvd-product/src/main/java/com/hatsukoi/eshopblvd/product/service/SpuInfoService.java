@@ -16,4 +16,8 @@ public interface SpuInfoService {
     void insertBaseSpuInfo(SpuInfo spuInfo);
 
     CommonPageInfo<SpuInfo> querySpuPage(Map<String, Object> params);
+
+    void spuUp(Long spuId);
+
+    SpuInfo getSpuInfoBySpuId(Long spuId);
 }

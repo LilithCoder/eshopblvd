@@ -25,6 +25,11 @@ public class ProductAttrValueServiceImpl implements ProductAttrValueService {
         productAttrValueMapper.batchInsert(collect);
     }
 
+    /**
+     * 「pms_product_attr_value」为规格参数表
+     * @param spuId
+     * @return
+     */
     @Override
     public List<ProductAttrValue> selectBaseAttrListForSpu(Long spuId) {
         ProductAttrValueExample productAttrValueExample = new ProductAttrValueExample();
