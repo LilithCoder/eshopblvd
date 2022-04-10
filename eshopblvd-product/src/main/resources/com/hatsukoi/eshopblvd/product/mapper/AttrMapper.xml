@@ -225,6 +225,14 @@
       <include refid="Example_Where_Clause" />
     </if>
   </select>
+  <select id="selectSearchedAttrIds" resultType="java.lang.Long">
+    SELECT attr_id FROM `pms_attr`
+    WHERE (attr_id IN
+    <foreach collection="attrIds" item="attrId" separator="," open="(" close=")">
+        #{attrId}
+    </foreach>
+    AND search_type = 1)
+  </select>
   <update id="updateByExampleSelective" parameterType="map">
     <!--
       WARNING - @mbg.generated

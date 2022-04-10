@@ -193,6 +193,14 @@
       </if>
     </trim>
   </insert>
+  <update id="addStock">
+    UPDATE `wms_ware_sku`
+    SET
+    stock = stock + #{skuNum},
+    WHERE
+    sku_id = #{skuId} AND
+    ware_id = #{wareId}
+  </update>
   <select id="countByExample" parameterType="com.hatsukoi.eshopblvd.ware.entity.WareSkuExample" resultType="java.lang.Long">
     <!--
       WARNING - @mbg.generated
@@ -202,6 +210,9 @@
     <if test="_parameter != null">
       <include refid="Example_Where_Clause" />
     </if>
+  </select>
+  <select id="getSkuStock" resultType="java.lang.Long">
+    SELECT SUM(stock - stock_locked) FROM `wms_ware_sku` WHERE sku_id=#{skuId}
   </select>
   <update id="updateByExampleSelective" parameterType="map">
     <!--

@@ -1,14 +1,23 @@
 package com.hatsukoi.eshopblvd.product.service.impl;
 
+import com.alibaba.fastjson.TypeReference;
+import com.github.pagehelper.PageHelper;
+import com.hatsukoi.eshopblvd.constant.ProductConstant;
 import com.hatsukoi.eshopblvd.coupon.service.SkuFullReductionService;
 import com.hatsukoi.eshopblvd.coupon.service.SpuBoundsService;
 import com.hatsukoi.eshopblvd.product.dao.SpuInfoMapper;
 import com.hatsukoi.eshopblvd.product.entity.*;
 import com.hatsukoi.eshopblvd.product.service.*;
 import com.hatsukoi.eshopblvd.product.vo.*;
+import com.hatsukoi.eshopblvd.search.service.SearchRPCService;
+import com.hatsukoi.eshopblvd.to.SkuHasStockVO;
 import com.hatsukoi.eshopblvd.to.SkuReductionTO;
 import com.hatsukoi.eshopblvd.to.SpuBoundTO;
 import com.hatsukoi.eshopblvd.to.MemberPrice;
+import com.hatsukoi.eshopblvd.to.es.SkuEsModel;
+import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
+import com.hatsukoi.eshopblvd.utils.CommonResponse;
+import com.hatsukoi.eshopblvd.ware.service.WareSkuRPCService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.apache.dubbo.config.annotation.Reference;
@@ -19,9 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -62,6 +69,30 @@ public class SpuInfoServiceImpl implements SpuInfoService {
     @Reference(check = false, interfaceName = "com.hatsukoi.eshopblvd.coupon.service.SkuFullReductionService")
     SkuFullReductionService skuFullReductionService;
 
+    @Autowired
+    SpuInfoService spuInfoService;
+
+    @Autowired
+    BrandService brandService;
+
+    @Autowired
+    CategoryService categoryService;
+
+    @Reference(check = false, interfaceName = "com.hatsukoi.eshopblvd.ware.service.WareSkuRPCService")
+    WareSkuRPCService wareSkuRPCService;
+
+    @Reference(check = false, interfaceName = "com.hatsukoi.eshopblvd.search.service.SearchRPCService")
+    SearchRPCService searchRPCService;
+
+    /**
+     * 保存spu基本信息
+     * 保存spu的描述图片
+     * 保存spu的商品图集（sku用）
+     * 保存spu的积分信息
+     * 保存spu的规格参数
+     * 保存当前spu对应的所有sku的信息
+     * @param vo
+     */
     @Override
     @Transactional
     public void insertNewSpu(SpuInsertVO vo) {
@@ -187,5 +218,165 @@ public class SpuInfoServiceImpl implements SpuInfoService {
     @Override
     public void insertBaseSpuInfo(SpuInfo spuInfo) {
         spuInfoMapper.insert(spuInfo);
+    }
+
+    /**
+     *
+     * @param params
+     * @return
+     */
+    @Override
+    public CommonPageInfo<SpuInfo> querySpuPage(Map<String, Object> params) {
+        // 分页参数
+        int pageNum = 1;
+        int pageSize = 10;
+        // 模糊搜索关键词
+        String keyword = "";
+        if (params.get("page") != null) {
+            pageNum = Integer.parseInt(params.get("page").toString());
+        }
+        if (params.get("limit") != null) {
+            pageSize = Integer.parseInt(params.get("limit").toString());
+        }
+        PageHelper.startPage(pageNum, pageSize);
+
+        // select * from pms_spu_info
+        // where (id = ? or spu_name like %?%) and
+        // publish_status = ? and
+        // brandId = ? and
+        // catelogId = ?
+        SpuInfoExample spuInfoExample = new SpuInfoExample();
+        SpuInfoExample.Criteria criteria = spuInfoExample.createCriteria();
+
+        // 检索条件：关键词
+        if (params.get("key") != null) {
+            keyword = params.get("key").toString();
+            if (!StringUtils.isEmpty(keyword)) {
+                criteria.andKeyFilter(keyword);
+            }
+        }
+
+        // 检索条件：商品状态
+        if (params.get("status") != null) {
+            int status = Integer.parseInt(params.get("status").toString());
+            criteria.andPublishStatusEqualTo((byte) status);
+        }
+
+        // 检索条件：品牌id
+        if (params.get("brandId") != null) {
+            Long brandId = Long.parseLong(params.get("brandId").toString());
+            criteria.andBrandIdEqualTo(brandId);
+        }
+
+        // 检索条件：分类id
+        if (params.get("catelogId") != null) {
+            Long catelogId = Long.parseLong(params.get("catelogId").toString());
+            criteria.andCatalogIdEqualTo(catelogId);
+        }
+        List<SpuInfo> spuInfos = spuInfoMapper.selectByExample(spuInfoExample);
+        return CommonPageInfo.convertToCommonPage(spuInfos);
+    }
+
+    /**
+     * 商品上架
+     * @param spuId
+     */
+    @Override
+    public void spuUp(Long spuId) {
+        // 1 构建SkuEsModel数据
+        // 1.1 查出当前spu对应所有sku的基本信息(skuId, skuTitle, skuPrice, skuImg, saleCount)「pms_sku_info」
+        List<SkuInfo> skus = skuInfoService.getSkusBySpuId(spuId);
+
+        // 1.1.1 查询品牌名/logo、分类名
+        SpuInfo spuInfo = spuInfoService.getSpuInfoBySpuId(spuId);
+        Long brandId = spuInfo.getBrandId();
+        Brand brand = brandService.getBrandById(brandId);
+        Long catalogId = spuInfo.getCatalogId();
+        Category category = categoryService.getCategoryById(catalogId);
+
+        // 1.2 查出当前spu可以被用来检索（支持筛选）的规格参数
+        // 1.2.1 查出spu的规格参数「pms_product_attr_value」
+        List<ProductAttrValue> baseAttrList = productAttrValueService.selectBaseAttrListForSpu(spuId);
+
+        // 1.2.2 根据attrId过滤出来可以被检索的(searchType为1)「pms_attr」
+        List<Long> attrIds = baseAttrList.stream().map(productAttrValue -> {
+            return productAttrValue.getAttrId();
+        }).collect(Collectors.toList());
+        // 在指定的所有属性集合里面，挑出检索属性
+        // select attr_id from pms_attr where attr_id in ? and search_type = 1
+        List<Long> finalAttrIds = attrService.filterAttrIds(attrIds);
+
+        // 1.2.3 构造List<SkuEsModel.Attrs>
+        Set<Long> attrIdSet = new HashSet<>(finalAttrIds);
+        List<SkuEsModel.Attrs> attrsList = baseAttrList.stream().filter(baseAttr -> {
+            return attrIdSet.contains(baseAttr.getAttrId());
+        }).map(baseAttr -> {
+            SkuEsModel.Attrs attrs = new SkuEsModel.Attrs();
+            attrs.setAttrId(baseAttr.getAttrId());
+            attrs.setAttrName(baseAttr.getAttrName());
+            attrs.setAttrValue(baseAttr.getAttrValue());
+            return attrs;
+        }).collect(Collectors.toList());
+
+        // 1.3 【远程调用】库存系统查询是否有库存「eshopblvd-search/wms_ware_sku」
+        // 「sku -> 是否有库存」映射
+        Map<Long, Boolean> stockMap = null;
+        List<Long> skuIds = skus.stream().map(sku -> {
+            return sku.getSkuId();
+        }).collect(Collectors.toList());
+        try {
+            CommonResponse resp = CommonResponse.convertToResp(wareSkuRPCService.getSkusHasStock(skuIds));
+            List<SkuHasStockVO> skuHasStockList = resp.getData(new TypeReference<List<SkuHasStockVO>>(){});
+            stockMap = skuHasStockList.stream().collect(Collectors.toMap(SkuHasStockVO::getSkuId, SkuHasStockVO::getHasStock));
+        } catch (Exception e) {
+            log.error("【RPC调用】获取sku库存信息错误：{}", e);
+        }
+
+
+        // 1.4 封装SkuEsModel信息
+        Map<Long, Boolean> finalStockMap = stockMap;
+        List<SkuEsModel> skuList = skus.stream().map(skuInfo -> {
+            SkuEsModel skuEsModel = new SkuEsModel();
+            skuEsModel.setSkuId(skuInfo.getSkuId());
+            skuEsModel.setSpuId(spuId);
+            skuEsModel.setSkuTitle(skuInfo.getSkuTitle());
+            skuEsModel.setSkuPrice(skuInfo.getPrice());
+            skuEsModel.setSkuImg(skuInfo.getSkuDefaultImg());
+            skuEsModel.setSaleCount(skuInfo.getSaleCount());
+            skuEsModel.setHasStock(finalStockMap.get(skuInfo.getSkuId()));
+            // TODO: 暂时为0
+            skuEsModel.setHotScore(0L);
+            skuEsModel.setBrandId(brandId);
+            skuEsModel.setCatalogId(catalogId);
+            skuEsModel.setBrandName(brand.getName());
+            skuEsModel.setBrandImg(brand.getLogo());
+            skuEsModel.setCatalogName(category.getName());
+            skuEsModel.setAttrs(attrsList);
+            return skuEsModel;
+        }).collect(Collectors.toList());
+
+        // 2 【远程调用】将构造的SkuEsModel数据发送给「eshopblvd-search」去存入es
+        System.out.println(skuList.toString());
+        try {
+            CommonResponse resp = CommonResponse.convertToResp(searchRPCService.productUp(skuList));
+            if (resp.getCode() == HttpStatus.SC_OK) {
+                SpuInfo spu = new SpuInfo();
+                spu.setPublishStatus((byte) ProductConstant.StatusEnum.SPU_UP.getCode());
+                spuInfoMapper.updateByPrimaryKeySelective(spu);
+            }
+        } catch (Exception e) {
+            log.error("【RPC调用】商品上架错误：{}", e);
+        }
+    }
+
+    /**
+     * 根据spuId查询相关信息
+     * @param spuId
+     * @return
+     */
+    @Override
+    public SpuInfo getSpuInfoBySpuId(Long spuId) {
+        SpuInfo spuInfo = spuInfoMapper.selectByPrimaryKey(spuId);
+        return spuInfo;
     }
 }

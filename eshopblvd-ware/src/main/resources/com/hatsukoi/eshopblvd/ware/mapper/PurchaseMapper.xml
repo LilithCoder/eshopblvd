@@ -350,4 +350,42 @@
       update_time = #{updateTime,jdbcType=TIMESTAMP}
     where id = #{id,jdbcType=BIGINT}
   </update>
+  <update id="batchUpdate">
+    <foreach collection="collect" item="item" index="index" separator=";">
+      UPDATE `wms_purchase`
+      <trim prefix="set" suffixOverrides=",">
+        <if test="item.assigneeId != null" >
+          assignee_id = #{item.assigneeId,jdbcType=BIGINT},
+        </if>
+        <if test="item.assigneeName != null" >
+          assignee_name = #{item.assigneeName,jdbcType=VARCHAR},
+        </if>
+        <if test="item.phone != null" >
+          phone = #{item.phone,jdbcType=CHAR},
+        </if>
+        <if test="item.priority != null" >
+          priority = #{item.priority,jdbcType=INTEGER},
+        </if>
+        <if test="item.status != null" >
+          status = #{item.status,jdbcType=INTEGER},
+        </if>
+        <if test="item.wareId != null" >
+          ware_id = #{item.wareId,jdbcType=BIGINT},
+        </if>
+        <if test="item.amount != null" >
+          amount = #{item.amount,jdbcType=DECIMAL},
+        </if>
+        <if test="item.createTime != null" >
+          create_time = #{item.createTime,jdbcType=TIMESTAMP},
+        </if>
+        <if test="item.wareId != null" >
+          ware_id = #{item.wareId,jdbcType=BIGINT},
+        </if>
+        <if test="item.updateTime != null" >
+          update_time = #{item.updateTime,jdbcType=TIMESTAMP}
+        </if>
+      </trim>
+      where id = #{item.id,jdbcType=BIGINT}
+    </foreach>
+  </update>
 </mapper>

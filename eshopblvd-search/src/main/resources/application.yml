@@ -1,0 +1,26 @@
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 47.103.8.41:8848
+  application:
+    name: eshopblvd-search
+#  elasticsearch:
+#    rest:
+#      uris: http://124.222.187.180:9200
+
+server:
+  port: 12000
+
+dubbo:
+  application:
+    name: eshopblvd-search-dubbo
+  registry:
+    address: nacos://47.103.8.41:8848
+  monitor:
+    protocol: registry
+  protocol:
+    port: 20881
+  consumer:
+    timeout: 60000
+    retries: 3

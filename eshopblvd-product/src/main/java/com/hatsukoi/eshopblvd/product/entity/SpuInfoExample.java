@@ -755,6 +755,11 @@ public class SpuInfoExample {
             addCriterion("update_time not between", value1, value2, "updateTime");
             return (Criteria) this;
         }
+
+        public Criteria andKeyFilter(String keyword) {
+            addCriterion("(id='" + keyword + "' or spu_name like '%" + keyword + "%')");
+            return (Criteria) this;
+        }
     }
 
     /**

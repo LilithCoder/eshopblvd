@@ -93,4 +93,6 @@ public interface AttrMapper {
      * @mbg.generated
      */
     int updateByPrimaryKey(Attr record);
+
+    List<Long> selectSearchedAttrIds(@Param("attrIds") List<Long> attrIds);
 }

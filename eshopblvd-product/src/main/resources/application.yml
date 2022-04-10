@@ -10,6 +10,8 @@ spring:
         server-addr: 47.103.8.41:8848
   application:
     name: eshopblvd-product
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
 
 mybatis:
   mapper-locations: classpath*:com/hatsukoi/eshopblvd/product/mapper/*.xml

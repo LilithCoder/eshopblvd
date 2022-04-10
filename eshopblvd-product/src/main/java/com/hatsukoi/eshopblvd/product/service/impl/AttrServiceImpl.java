@@ -282,4 +282,16 @@ public class AttrServiceImpl implements AttrService {
     public Attr getAttrById(Long attrId) {
         return attrMapper.selectByPrimaryKey(attrId);
     }
+
+    /**
+     * 在指定的所有属性集合里面，挑出检索属性
+     * @param attrIds
+     * @return
+     */
+    @Override
+    public List<Long> filterAttrIds(List<Long> attrIds) {
+        // select attr_id from pms_attr where attr_id in ? and search_type = 1
+        List<Long> finalAttrIds = attrMapper.selectSearchedAttrIds(attrIds);
+        return finalAttrIds;
+    }
 }

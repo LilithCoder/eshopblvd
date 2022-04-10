@@ -10,4 +10,8 @@ import java.util.List;
  */
 public interface ProductAttrValueService {
     void insertProductAttrValue(List<ProductAttrValue> collect);
+
+    List<ProductAttrValue> selectBaseAttrListForSpu(Long spuId);
+
+    void updateSpuAttr(Long spuId, List<ProductAttrValue> productAttrValueList);
 }

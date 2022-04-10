@@ -2,7 +2,7 @@ spring:
   datasource:
     username: root
     password: root
-    url: jdbc:mysql://47.103.8.41:3306/eshopblvd_wms
+    url: jdbc:mysql://47.103.8.41:3306/eshopblvd_wms?allowMultiQueries=true
     driver-class-name: com.mysql.cj.jdbc.Driver
   cloud:
     nacos:
@@ -16,3 +16,17 @@ mybatis:
 
 server:
   port: 11000
+
+dubbo:
+  application:
+    name: dubbo-eshopblvd-ware
+  registry:
+    address: nacos://47.103.8.41:8848
+  monitor:
+    protocol: registry
+  protocol:
+    port: 20890
+
+#logging:
+#  level:
+#    com.hatsukoi: debug

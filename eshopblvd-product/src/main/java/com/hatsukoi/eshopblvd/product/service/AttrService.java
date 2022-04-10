@@ -28,4 +28,6 @@ public interface AttrService {
     CommonPageInfo<Attr> getNonRelatedAttrsByAttrGroup(Long attrgroupId, Map<String, Object> params);
 
     Attr getAttrById(Long attrId);
+
+    List<Long> filterAttrIds(List<Long> attrIds);
 }

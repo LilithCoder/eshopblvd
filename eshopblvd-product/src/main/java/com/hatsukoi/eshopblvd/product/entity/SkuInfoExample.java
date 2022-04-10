@@ -904,6 +904,11 @@ public class SkuInfoExample {
             addCriterion("sale_count not between", value1, value2, "saleCount");
             return (Criteria) this;
         }
+
+        public Criteria andKeywordFilter(String keyword) {
+            addCriterion("(sku_id='" + keyword + "' or sku_name like '%" + keyword + "%')");
+            return (Criteria) this;
+        }
     }
 
     /**
