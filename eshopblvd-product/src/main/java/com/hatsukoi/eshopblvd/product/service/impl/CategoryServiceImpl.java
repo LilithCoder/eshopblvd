@@ -1,22 +1,29 @@
 package com.hatsukoi.eshopblvd.product.service.impl;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.TypeReference;
 import com.hatsukoi.eshopblvd.product.dao.CategoryMapper;
 import com.hatsukoi.eshopblvd.product.entity.Category;
 import com.hatsukoi.eshopblvd.product.entity.CategoryExample;
 import com.hatsukoi.eshopblvd.product.service.CategoryBrandRelationService;
 import com.hatsukoi.eshopblvd.product.service.CategoryService;
 import com.hatsukoi.eshopblvd.product.vo.CatalogVO;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
  * @author gaoweilin
  * @date 2022/03/13 Sun 1:14 PM
  */
+@Slf4j
 @Service
 public class CategoryServiceImpl implements CategoryService {
     @Autowired
@@ -24,6 +31,9 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Autowired
     CategoryBrandRelationService categoryBrandRelationService;
+
+    @Autowired
+    StringRedisTemplate redisTemplate;
 
     /**
      * 查出所有的分类以及其子分类，并且以父子树形结构组装起来
@@ -118,15 +128,55 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     /**
-     * 获取首页的分类菜单
+     * 从获取首页数据
      * @return
      */
     @Override
-    public Map<Long, CatalogVO> getHomepageCatalog() {
+    public  Map<String, Object> getHomepageInitData() {
+        Map<String, Object> result = new HashMap<>();
+        Map<Long, CatalogVO> catalog = getHomepageCatalogFromRedis();
+        result.put("catalog", catalog);
+        return result;
+    }
+
+    /**
+     * 从redis分布式缓存中查询菜单信息
+     * @return
+     */
+    private Map<Long, CatalogVO> getHomepageCatalogFromRedis() {
+        long beginTime = System.currentTimeMillis();
+        // 先从缓存中找有没有数据，没有的话再查数据库
+        String catalogJSON = redisTemplate.opsForValue().get("catalogJSON");
+        if (!StringUtils.isEmpty(catalogJSON)) {
+            log.info("获取三级菜单命中redis缓存!");
+            Map<Long, CatalogVO> result = JSON.parseObject(catalogJSON, new TypeReference<Map<Long, CatalogVO>>() {
+            });
+            long time = System.currentTimeMillis() - beginTime;
+            log.info("获取三级菜单耗时：{}ms", time);
+            return result;
+        }
+        log.info("获取三级菜单未命中redis缓存，获取数据库数据并存入redis中...");
+        Map<Long, CatalogVO> catalogFromDB = getHomepageCatalogFromDB();
+        String toJSONString = JSON.toJSONString(catalogFromDB);
+        redisTemplate.opsForValue().set("catalogJSON", toJSONString, 1, TimeUnit.DAYS);
+        long time = System.currentTimeMillis() - beginTime;
+        log.info("获取三级菜单耗时：{}ms", time);
+        return catalogFromDB;
+    }
+
+
+    /**
+     * 从数据库获取首页的分类菜单
+     * @return
+     */
+    private Map<Long, CatalogVO> getHomepageCatalogFromDB() {
         Map<Long, CatalogVO> collect = null;
 
+        // 【优化】仅查询一次数据库，获取全部的分类数据「pms_category」
+        List<Category> categories = categoryMapper.selectByExample(null);
+
         // 获取一级分类
-        List<Category> category1List = getChildren(0L, 0);
+        List<Category> category1List = getChildren(categories, 0L, 0);
 
         // 一级分类id为key，CatalogVO为value
         if (category1List != null && category1List.size() > 0) {
@@ -135,13 +185,13 @@ public class CategoryServiceImpl implements CategoryService {
             }, category -> {
                 CatalogVO catalogVO = new CatalogVO();
                 // 每个一级分类找到其所有二级分类
-                List<Category> category2List = getChildren(category.getCatId(), category.getCatLevel());
+                List<Category> category2List = getChildren(categories, category.getCatId(), category.getCatLevel());
                 List<CatalogVO.Catalog2VO> catalog2VOList = null;
                 if (category2List != null && category2List.size() > 0) {
                     catalog2VOList = category2List.stream().map(category2 -> {
                         CatalogVO.Catalog2VO catalog2VO = new CatalogVO.Catalog2VO();
                         // 每个二级分类找到其所有三级分类
-                        List<Category> category3List = getChildren(category2.getCatId(), category2.getCatLevel());
+                        List<Category> category3List = getChildren(categories, category2.getCatId(), category2.getCatLevel());
                         List<CatalogVO.Catalog3VO> catalog3VOList = null;
                         if (category3List != null && category3List.size() > 0) {
                             catalog3VOList = category3List.stream().map(category3 -> {
@@ -172,13 +222,10 @@ public class CategoryServiceImpl implements CategoryService {
      * @param parentLevel
      * @return
      */
-    private List<Category> getChildren(Long parentId, Integer parentLevel) {
-        CategoryExample example = new CategoryExample();
-        CategoryExample.Criteria criteria = example.createCriteria();
-        criteria.andParentCidEqualTo(parentId);
-        criteria.andCatLevelEqualTo(parentLevel + 1);
-        List<Category> categoryList = categoryMapper.selectByExample(example);
-        return categoryList;
+    private List<Category> getChildren(List<Category> categories, Long parentId, Integer parentLevel) {
+        return categories.stream().filter(category -> {
+            return category.getParentCid() == parentId && category.getCatLevel() == parentLevel + 1;
+        }).collect(Collectors.toList());
     }
 
     /**

@@ -26,5 +26,5 @@ public interface CategoryService {
 
     Long[] getCatelogPath(Long catelogId);
 
-    Map<Long, CatalogVO> getHomepageCatalog();
+    Map<String, Object> getHomepageInitData();
 }

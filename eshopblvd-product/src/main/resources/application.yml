@@ -14,6 +14,9 @@ spring:
     date-format: yyyy-MM-dd HH:mm:ss
   thymeleaf:
     cache: false
+  redis:
+    host: 47.103.8.41
+    port: 6379
 
 mybatis:
   mapper-locations: classpath*:com/hatsukoi/eshopblvd/product/mapper/*.xml

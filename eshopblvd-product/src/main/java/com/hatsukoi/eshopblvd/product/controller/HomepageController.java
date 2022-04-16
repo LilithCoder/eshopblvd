@@ -22,14 +22,12 @@ public class HomepageController {
 
     /**
      * 首页初始请求
+     * 获取一级分类以及「一级分类->该分类下所有子分类」映射
      * @return
      */
     @RequestMapping("/indexapi")
     public CommonResponse initRequest() {
-        // 获取一级分类以及「一级分类->该分类下所有子分类」映射
-        Map<Long, CatalogVO> catalog = categoryService.getHomepageCatalog();
-        Map<String, Object> result = new HashMap<>();
-        result.put("catalog", catalog);
+        Map<String, Object> result = categoryService.getHomepageInitData();
         return CommonResponse.success().setData(result);
     }
 }
