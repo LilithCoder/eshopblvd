@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -147,21 +148,67 @@ public class CategoryServiceImpl implements CategoryService {
         long beginTime = System.currentTimeMillis();
         // 先从缓存中找有没有数据，没有的话再查数据库
         String catalogJSON = redisTemplate.opsForValue().get("catalogJSON");
-        if (!StringUtils.isEmpty(catalogJSON)) {
-            log.info("获取三级菜单命中redis缓存!");
-            Map<Long, CatalogVO> result = JSON.parseObject(catalogJSON, new TypeReference<Map<Long, CatalogVO>>() {
-            });
+        if (StringUtils.isEmpty(catalogJSON)) {
+            log.info("获取三级菜单未命中redis缓存");
+            Map<Long, CatalogVO> catalogFromDB = getHomepageCatalogFromDBWithLock();
+            String toJSONString = JSON.toJSONString(catalogFromDB);
+            redisTemplate.opsForValue().set("catalogJSON", toJSONString, 1, TimeUnit.DAYS);
             long time = System.currentTimeMillis() - beginTime;
             log.info("获取三级菜单耗时：{}ms", time);
-            return result;
+            return catalogFromDB;
         }
-        log.info("获取三级菜单未命中redis缓存，获取数据库数据并存入redis中...");
-        Map<Long, CatalogVO> catalogFromDB = getHomepageCatalogFromDB();
-        String toJSONString = JSON.toJSONString(catalogFromDB);
-        redisTemplate.opsForValue().set("catalogJSON", toJSONString, 1, TimeUnit.DAYS);
+        log.info("获取三级菜单命中redis缓存!");
+        Map<Long, CatalogVO> result = JSON.parseObject(catalogJSON, new TypeReference<Map<Long, CatalogVO>>() {
+        });
         long time = System.currentTimeMillis() - beginTime;
         log.info("获取三级菜单耗时：{}ms", time);
-        return catalogFromDB;
+        return result;
+
+    }
+
+    /**
+     * 加个分布式锁从数据库查数据
+     * @return
+     */
+    private Map<Long, CatalogVO> getHomepageCatalogFromDBWithLock() {
+        // 锁的标识
+        String uuid = UUID.randomUUID().toString();
+        // 原子操作获取锁
+        Boolean lock = redisTemplate.opsForValue().setIfAbsent("lock", uuid, 30, TimeUnit.SECONDS);
+        if (lock) {
+            log.info("获取分布式锁成功");
+            Map<Long, CatalogVO> homepageCatalog = null;
+            try {
+                String catalogJSON = redisTemplate.opsForValue().get("catalogJSON");
+                if (!StringUtils.isEmpty(catalogJSON)) {
+                    log.info("缓存命中! 数据返回");
+                    homepageCatalog = JSON.parseObject(catalogJSON, new TypeReference<Map<Long, CatalogVO>>() {});
+                } else {
+                    log.info("开始查询数据库...");
+                    homepageCatalog = getHomepageCatalogFromDB();
+                    // 查到的数据再放入缓存，将对象转为json放在缓存中
+                    String toJSONString = JSON.toJSONString(homepageCatalog);
+                    redisTemplate.opsForValue().set("catalogJSON", toJSONString, 1, TimeUnit.DAYS);
+                }
+            } catch (Exception e) {
+                log.error(e.toString());
+            } finally {
+                // 释放锁
+                String script = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+                redisTemplate.execute(new DefaultRedisScript<Long>(script, Long.class), Arrays.asList("lock"), uuid);
+                log.info("分布式锁释放成功");
+            }
+            return homepageCatalog;
+        } else {
+            // 获取不到分布式锁就休眠200ms后自旋重试获取锁
+            log.info("获取分布式锁失败，重试中...");
+            try {
+                Thread.sleep(200);
+            } catch (Exception e) {
+                log.error(e.toString());
+            }
+            return getHomepageCatalogFromDBWithLock();
+        }
     }
 
 

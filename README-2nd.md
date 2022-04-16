@@ -971,31 +971,318 @@ return data;
 
 ![](./docs/assets/134.png)
 
+未来如果这个查询在数据库里有数据了，那缓存也还是空结果，那么就需要给缓存的结果设定过期时间，那么下一次查缓存没有，那么就需要去数据库中查
 
+### 缓存雪崩
 
+![](./docs/assets/135.png)
 
+### 缓存击穿
 
+![](./docs/assets/136.png)
 
+### 优化接口
 
+- 空结果缓存：解决缓存穿透
+- 设置过期时间（加随机值）：解决缓存雪崩
+- 加锁：解决缓存击穿
 
+#### 加锁解决缓存击穿问题
 
+将查询db的方法加锁，这样在同一时间只有一个方法能查询数据库，就能解决缓存击穿的问题了
 
+SpringBoot所有的组件在容器中都是单例的。
 
+```java
+public Map<String, List<Catalog2Vo>> getCategoryMap() {
+        ValueOperations<String, String> ops = stringRedisTemplate.opsForValue();
+        String catalogJson = ops.get("catalogJson");
+        if (StringUtils.isEmpty(catalogJson)) {
+            System.out.println("缓存不命中，准备查询数据库。。。");
+            Map<String, List<Catalog2Vo>> categoriesDb = getCategoriesDb();
+            String toJSONString = JSON.toJSONString(categoriesDb);
+            ops.set("catalogJson",toJSONString);
+            return categoriesDb;
+        }
+        System.out.println("缓存命中。。。。");
+        Map<String, List<Catalog2Vo>> listMap = JSON.parseObject(catalogJson, new TypeReference<Map<String, List<Catalog2Vo>>>() {});
+        return listMap;
+    }
 
+ private synchronized Map<String, List<Catalog2Vo>> getCategoriesDb() {
+        String catalogJson = stringRedisTemplate.opsForValue().get("catalogJson");
+        if (StringUtils.isEmpty(catalogJson)) {
+            System.out.println("查询了数据库");
+      		。。。。。
+            return listMap;
+        }else {
+            Map<String, List<Catalog2Vo>> listMap = JSON.parseObject(catalogJson, new TypeReference<Map<String, List<Catalog2Vo>>>() {});
+            return listMap;
+        }
+    }
+```
 
+#### 锁时序问题
 
+目标是只要缓存不命中，查数据库只能查一次
 
+我们将业务逻辑中的`确认缓存没有`和`查数据库`放到了锁里，但是最终控制台却打印了两次查询了数据库。这是因为在将结果放入缓存的这段时间里，有其他线程确认缓存没有，又再次查询了数据库，因此我们要将`结果放入缓存`也进行加锁
 
+![](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-07_17-23-41.png)
 
+## 分布式锁
 
+![](./docs/assets/137.png)
 
+synchronized加锁只用this锁了本地service这个实例
 
+本地锁锁不住分布式服务多个实例
 
+分布式锁比本地锁慢
 
+本地锁包括了synchronized，juc下lock接口，只锁得住当前进程，一个服务对应一个进程
 
+在分布式情况下，想要锁住所有，必须使用分布式锁
 
+启动一个新的服务，模拟分布式情况
 
+![](./docs/assets/138.png)
 
+### 基本原理
+
+![](./docs/assets/140.png)
+
+我们可以同时去一个地方“占坑”，如果占到，就执行逻辑。否则就必须等待，直到释放锁。“占坑”可以去redis，可以去数据库，可以去任何大家都能访问的地方。等待可以自旋的方式。
+
+![](./docs/assets/141.png)
+
+```java
+	public Map<String, List<Catalog2Vo>> getCatalogJsonDbWithRedisLock() {
+        //阶段一
+        Boolean lock = stringRedisTemplate.opsForValue().setIfAbsent("lock", "111");
+        //获取到锁，执行业务
+        if (lock) {
+            Map<String, List<Catalog2Vo>> categoriesDb = getCategoryMap();
+            //删除锁，如果在此之前报错或宕机会造成死锁
+            stringRedisTemplate.delete("lock");
+            return categoriesDb;
+        }else {
+            //没获取到锁，等待100ms重试
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            return getCatalogJsonDbWithRedisLock();
+        }
+    }
+
+public Map<String, List<Catalog2Vo>> getCategoryMap() {
+        ValueOperations<String, String> ops = stringRedisTemplate.opsForValue();
+        String catalogJson = ops.get("catalogJson");
+        if (StringUtils.isEmpty(catalogJson)) {
+            System.out.println("缓存不命中，准备查询数据库。。。");
+            Map<String, List<Catalog2Vo>> categoriesDb= getCategoriesDb();
+            String toJSONString = JSON.toJSONString(categoriesDb);
+            ops.set("catalogJson", toJSONString);
+            return categoriesDb;
+        }
+        System.out.println("缓存命中。。。。");
+        Map<String, List<Catalog2Vo>> listMap = JSON.parseObject(catalogJson, new TypeReference<Map<String, List<Catalog2Vo>>>() {});
+        return listMap;
+    }
+```
+
+问题： 1、setnx占好了位，业务代码异常或者程序在页面过程中宕机。没有执行删除锁逻辑，这就造成了死锁
+
+解决：设置锁的自动过期，即使没有删除，会自动删除
+
+![](./docs/assets/142.png)
+
+问题： 1、setnx设置好，正要去设置过期时间，宕机。又死锁了。 
+
+解决： 设置过期时间和占位必须是原子的。redis支持使用setnx ex命令
+
+![](./docs/assets/143.png)
+
+```java
+public Map<String, List<Catalog2Vo>> getCatalogJsonDbWithRedisLock() {
+    //加锁的同时设置过期时间，二者是原子性操作
+    Boolean lock = stringRedisTemplate.opsForValue().setIfAbsent("lock", "1111",5, TimeUnit.SECONDS);
+    if (lock) {
+        Map<String, List<Catalog2Vo>> categoriesDb = getCategoryMap();
+        //模拟超长的业务执行时间
+        try {
+            Thread.sleep(6000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        stringRedisTemplate.delete("lock");
+        return categoriesDb;
+    }else {
+        try {
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        return getCatalogJsonDbWithRedisLock();
+    }
+}
+```
+
+问题： 1、删除锁直接删除？？？ 如果由于业务时间很长，锁自己过期了，我们直接删除，有可能把别人正在持有的锁删除了。
+
+ 解决： 占锁的时候，值指定为uuid，每个人匹配是自己的锁才删除。
+
+![](./docs/assets/144.png)
+
+```java
+ public Map<String, List<Catalog2Vo>> getCatalogJsonDbWithRedisLock() {
+        String uuid = UUID.randomUUID().toString();
+        ValueOperations<String, String> ops = stringRedisTemplate.opsForValue();
+     	//为当前锁设置唯一的uuid，只有当uuid相同时才会进行删除锁的操作
+        Boolean lock = ops.setIfAbsent("lock", uuid,5, TimeUnit.SECONDS);
+        if (lock) {
+            Map<String, List<Catalog2Vo>> categoriesDb = getCategoryMap();
+            String lockValue = ops.get("lock");
+            if (lockValue.equals(uuid)) {
+                try {
+                    Thread.sleep(6000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                stringRedisTemplate.delete("lock");
+            }
+            return categoriesDb;
+        }else {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            return getCatalogJsonDbWithRedisLock();
+        }
+    }
+```
+
+问题： 1、如果正好判断是当前值，正要删除锁的时候，锁已经过期，别人已经设置到了新的值。那么我们删除的是别人的锁 
+
+解决： 删除锁必须保证原子性。使用redis+Lua脚本完成
+
+![](./docs/assets/145.png)
+
+```java
+ public Map<String, List<Catalog2Vo>> getCatalogJsonDbWithRedisLock() {
+        String uuid = UUID.randomUUID().toString();
+        ValueOperations<String, String> ops = stringRedisTemplate.opsForValue();
+        Boolean lock = ops.setIfAbsent("lock", uuid,5, TimeUnit.SECONDS);
+        if (lock) {
+            Map<String, List<Catalog2Vo>> categoriesDb = getCategoryMap();
+            String lockValue = ops.get("lock");
+            String script = "if redis.call(\"get\",KEYS[1]) == ARGV[1] then\n" +
+                    "    return redis.call(\"del\",KEYS[1])\n" +
+                    "else\n" +
+                    "    return 0\n" +
+                    "end";
+            stringRedisTemplate.execute(new DefaultRedisScript<Long>(script, Long.class), Arrays.asList("lock"), lockValue);
+            return categoriesDb;
+        }else {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            return getCatalogJsonDbWithRedisLock();
+        }
+    }
+```
+
+保证加锁【占位+过期时间】和删除锁【判断+删除】的原子性。更难的事情，锁的自动续期：锁放长点300s
+
+## 最终优化逻辑
+
+![](./docs/assets/146.svg)
+
+```java
+    /**
+     * 从redis分布式缓存中查询菜单信息
+     * @return
+     */
+    private Map<Long, CatalogVO> getHomepageCatalogFromRedis() {
+        long beginTime = System.currentTimeMillis();
+        // 先从缓存中找有没有数据，没有的话再查数据库
+        String catalogJSON = redisTemplate.opsForValue().get("catalogJSON");
+        if (StringUtils.isEmpty(catalogJSON)) {
+            log.info("获取三级菜单未命中redis缓存");
+            Map<Long, CatalogVO> catalogFromDB = getHomepageCatalogFromDBWithLock();
+            String toJSONString = JSON.toJSONString(catalogFromDB);
+            redisTemplate.opsForValue().set("catalogJSON", toJSONString, 1, TimeUnit.DAYS);
+            long time = System.currentTimeMillis() - beginTime;
+            log.info("获取三级菜单耗时：{}ms", time);
+            return catalogFromDB;
+        }
+        log.info("获取三级菜单命中redis缓存!");
+        Map<Long, CatalogVO> result = JSON.parseObject(catalogJSON, new TypeReference<Map<Long, CatalogVO>>() {
+        });
+        long time = System.currentTimeMillis() - beginTime;
+        log.info("获取三级菜单耗时：{}ms", time);
+        return result;
+
+    }
+
+    /**
+     * 加个分布式锁从数据库查数据
+     * @return
+     */
+    private Map<Long, CatalogVO> getHomepageCatalogFromDBWithLock() {
+        // 锁的标识
+        String uuid = UUID.randomUUID().toString();
+        // 原子操作获取锁
+        Boolean lock = redisTemplate.opsForValue().setIfAbsent("lock", uuid, 30, TimeUnit.SECONDS);
+        if (lock) {
+            log.info("获取分布式锁成功");
+            Map<Long, CatalogVO> homepageCatalog = null;
+            try {
+                String catalogJSON = redisTemplate.opsForValue().get("catalogJSON");
+                if (!StringUtils.isEmpty(catalogJSON)) {
+                    log.info("缓存命中! 数据返回");
+                    homepageCatalog = JSON.parseObject(catalogJSON, new TypeReference<Map<Long, CatalogVO>>() {});
+                } else {
+                    log.info("开始查询数据库...");
+                    homepageCatalog = getHomepageCatalogFromDB();
+                    // 查到的数据再放入缓存，将对象转为json放在缓存中
+                    String toJSONString = JSON.toJSONString(homepageCatalog);
+                    redisTemplate.opsForValue().set("catalogJSON", toJSONString, 1, TimeUnit.DAYS);
+                }
+            } catch (Exception e) {
+                log.error(e.toString());
+            } finally {
+                // 释放锁
+                String script = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+                redisTemplate.execute(new DefaultRedisScript<Long>(script, Long.class), Arrays.asList("lock"), uuid);
+                log.info("分布式锁释放成功");
+            }
+            return homepageCatalog;
+        } else {
+            // 获取不到分布式锁就休眠200ms后自旋重试获取锁
+            log.info("获取分布式锁失败，重试中...");
+            try {
+                Thread.sleep(200);
+            } catch (Exception e) {
+                log.error(e.toString());
+            }
+            return getHomepageCatalogFromDBWithLock();
+        }
+    }
+```
+
+## Redisson
+
+Redisson是一个在Redis的基础上实现的Java驻内存数据网格（In-Memory Data Grid）。它不仅提供了一系列的分布式的Java常用对象，还提供了许多分布式服务。其中包括(`BitSet`, `Set`, `Multimap`, `SortedSet`, `Map`, `List`, `Queue`, `BlockingQueue`, `Deque`, `BlockingDeque`, `Semaphore`, `Lock`, `AtomicLong`, `CountDownLatch`, `Publish / Subscribe`, `Bloom filter`, `Remote service`, `Spring cache`, `Executor service`, `Live Object service`, `Scheduler service`) Redisson提供了使用Redis的最简单和最便捷的方法。Redisson的宗旨是促进使用者对Redis的关注分离（Separation of Concern），从而让使用者能够将精力更集中地放在处理业务逻辑上。
+
+本文我们仅关注分布式锁的实现，更多请参考[官方文档](https://github.com/redisson/redisson/wiki/8.-分布式锁和同步器)
+
+### 导入依赖
 
 
 
