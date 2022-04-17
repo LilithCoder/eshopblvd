@@ -11,6 +11,7 @@ import com.hatsukoi.eshopblvd.product.vo.CatalogVO;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
@@ -93,6 +94,7 @@ public class CategoryServiceImpl implements CategoryService {
      * 根据catId去更新指定分类内容
      * @param category
      */
+    @CacheEvict(key = "'catalogJSON'")
     @Override
     @Transactional
     public void updateCategory(Category category) {
@@ -106,13 +108,11 @@ public class CategoryServiceImpl implements CategoryService {
      * 批量更新分类
      * @param categories
      */
+    @CacheEvict(key = "'catalogJSON'")
     @Transactional
     @Override
     public void batchUpdateCategories(List<Category> categories) {
-        // TODO: 批量更新这些待优化，用xml写sql
-        for (Category category: categories) {
-            updateCategory(category);
-        }
+        categoryMapper.batchUpdateSelective(categories);
     }
 
     /**
@@ -176,7 +176,7 @@ public class CategoryServiceImpl implements CategoryService {
         // 原子操作获取锁
         Boolean lock = redisTemplate.opsForValue().setIfAbsent("lock", uuid, 30, TimeUnit.SECONDS);
         if (lock) {
-            log.info("获取分布式锁成功");
+            log.info("获取分布式锁成功，线程id：" + Thread.currentThread().getId());
             Map<Long, CatalogVO> homepageCatalog = null;
             try {
                 String catalogJSON = redisTemplate.opsForValue().get("catalogJSON");
@@ -187,6 +187,7 @@ public class CategoryServiceImpl implements CategoryService {
                     log.info("开始查询数据库...");
                     homepageCatalog = getHomepageCatalogFromDB();
                     // 查到的数据再放入缓存，将对象转为json放在缓存中
+                    // 如果数据库查询结果为null，也给缓存存入"null"来避免「缓存穿透」
                     String toJSONString = JSON.toJSONString(homepageCatalog);
                     redisTemplate.opsForValue().set("catalogJSON", toJSONString, 1, TimeUnit.DAYS);
                 }
@@ -196,7 +197,7 @@ public class CategoryServiceImpl implements CategoryService {
                 // 释放锁
                 String script = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
                 redisTemplate.execute(new DefaultRedisScript<Long>(script, Long.class), Arrays.asList("lock"), uuid);
-                log.info("分布式锁释放成功");
+                log.info("分布式锁释放成功，线程id：" + Thread.currentThread().getId());
             }
             return homepageCatalog;
         } else {

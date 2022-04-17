@@ -1284,9 +1284,470 @@ Redisson是一个在Redis的基础上实现的Java驻内存数据网格（In-Mem
 
 ### 导入依赖
 
+以后使用redisson作为所有分布式锁，分布式对象等功能框架
 
+```xml
+<dependency>
+    <groupId>org.redisson</groupId>
+    <artifactId>redisson</artifactId>
+    <version>3.13.4</version>
+</dependency>
+```
 
+### 程序化开启配置
 
+```java
+@Configuration
+public class MyRedissonConfig {
+    /**
+     * 所有对Redisson的使用都是通过RedissonClient对象，引入到容器中
+     * @return
+     * @throws IOException
+     */
+    @Bean(destroyMethod="shutdown")
+    public RedissonClient redisson(@Value("${spring.redis.host}") String url) throws IOException {
+        //1、创建配置
+        //Redis url should start with redis:// or rediss://
+        Config config = new Config();
+        config.useSingleServer().setAddress("redis://"+url+":6379");
+        //2、根据Config创建出RedissonClient示例
+        RedissonClient redissonClient = Redisson.create(config);
+        return redissonClient;
+    }
+}
+```
+
+### 可重入锁（Reentrant Lock）
+
+定义：可重入锁，也叫做递归锁，是指在一个线程中可以多次获取同一把锁，比如：一个线程在执行一个带锁的方法，该方法中又调用了另一个需要相同锁的方法，则该线程可以直接执行调用的方法【即可重入】，而无需重新获得锁
+
+举例：有一个方法a，方法内部调用了方法b，两个方法要加同一把锁，方法b看方法a已经加了这把锁，那就直接拿来这把锁直接用了，方法b将会直接执行，执行到最后方法a会释放这把锁
+
+所有锁都应该被设计成可重入锁，避免死锁的问题
+
+```java
+ public Map<String, List<Catalog2Vo>> getCatalogJsonDbWithRedisson() {
+        Map<String, List<Catalog2Vo>> categoryMap=null;
+        RLock lock = redissonClient.getLock("CatalogJson-Lock");
+        lock.lock(); // 阻塞锁
+        try {
+            Thread.sleep(30000);
+            categoryMap = getCategoryMap();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }finally {
+            lock.unlock();
+            return categoryMap;
+        }
+    }
+```
+
+如果负责储存这个分布式锁的Redisson节点宕机以后，而且这个锁正好处于锁住的状态时，这个锁会出现锁死的状态。为了避免这种情况的发生，所以就设置了过期时间，但是如果业务执行时间过长，业务还未执行完锁就已经过期，那么就会出现解锁时解了其他线程的锁的情况。
+
+所以Redisson内部提供了一个监控锁的看门狗，它的作用是在Redisson实例被关闭前，不断的延长锁的有效期。默认情况下，看门狗的检查锁的超时时间是30秒钟，也可以通过修改[Config.lockWatchdogTimeout](https://github.com/redisson/redisson/wiki/2.-配置方法#lockwatchdogtimeout监控锁的看门狗超时单位毫秒)来另行指定。
+
+`lock.lock();`阻塞式等待。默认加的锁都是30s时间。
+
+锁的自动续期，如果业务超长，运行期间自动给锁续上新的30s。不用担心业务时间长，锁自动过期被删掉
+加锁的业务只要运行完成，就不会给当前锁续期，即使不手动解锁，锁默认在30s以后自动删除。
+
+在本次测试中`CatalogJson-Lock`的初始过期时间TTL为30s，但是每到20s就会自动续借成30s
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-08_23-16-35.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-08_23-16-35.png)
+
+另外Redisson还通过加锁的方法提供了`leaseTime`的参数来指定加锁的时间。超过这个时间后锁便自动解开了。不会自动续期！
+
+问题：lock.lock(10,TimeUnit.SECONDS); 在锁时间到了以后，不会自动续期。
+1、如果我们传递了锁的超时时间，就发送给redis执行脚本，进行占锁，默认超时就是我们指定的时间
+2、如果我们未指定锁的超时时间，就使用30 * 1000【LockWatchdogTimeout看门狗的默认时间】;
+      只要占锁成功，就会启动一个定时任务【重新给锁设置过期时间，新的过期时间就是看门狗的默认时间】,每隔10s都会自动再次续期，续成30s
+internalLockLeaseTime【看门狗时间】 / 3,10s
+
+```java
+// 加锁以后10秒钟自动解锁
+// 无需调用unlock方法手动解锁,如果要手动解锁一定要确保业务执行时间小于锁的失效时间
+lock.lock(10, TimeUnit.SECONDS);
+
+// 尝试加锁，最多等待100秒，上锁以后10秒自动解锁
+boolean res = lock.tryLock(100, 10, TimeUnit.SECONDS);
+if (res) {
+   try {
+     ...
+   } finally {
+       lock.unlock();
+   }
+}
+```
+
+### 读写锁（ReadWriteLock）
+
+```java
+    @GetMapping("/read")
+    @ResponseBody
+    public String read() {
+        RReadWriteLock lock = redissonClient.getReadWriteLock("ReadWrite-Lock");
+        RLock rLock = lock.readLock();
+        String s = "";
+        try {
+            rLock.lock();
+            System.out.println("读锁加锁"+Thread.currentThread().getId());
+            Thread.sleep(5000);
+            s= redisTemplate.opsForValue().get("lock-value");
+        }finally {
+            rLock.unlock();
+            return "读取完成:"+s;
+        }
+    }
+
+    @GetMapping("/write")
+    @ResponseBody
+    public String write() {
+        RReadWriteLock lock = redissonClient.getReadWriteLock("ReadWrite-Lock");
+        RLock wLock = lock.writeLock();
+        String s = UUID.randomUUID().toString();
+        try {
+            wLock.lock();
+            System.out.println("写锁加锁"+Thread.currentThread().getId());
+            Thread.sleep(10000);
+            redisTemplate.opsForValue().set("lock-value",s);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }finally {
+            wLock.unlock();
+            return "写入完成:"+s;
+        }
+    }
+```
+
+写锁会阻塞读锁，但是读锁不会阻塞读锁，但读锁会阻塞写锁
+
+总之含有写的过程都会被阻塞，只有读读不会被阻塞
+
+```
+保证一定能读到最新数据,修改期间，写锁是一个排他锁（互斥锁、独享锁）。读锁是一个共享锁
+//写锁没释放读就必须等待
+// 读 + 读： 相当于无锁，并发读，只会在redis中记录好，所有当前的读锁。他们都会同时加锁成功
+// 写 + 读： 等待写锁释放
+// 写 + 写： 阻塞方式
+// 读 + 写： 有读锁。写也需要等待。
+// 只要有写的存在，都必须等待
+```
+
+上锁时在redis的状态
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-09_12-53-21.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-09_12-53-21.png)
+
+### 信号量（Semaphore）
+
+信号量为存储在redis中的一个数字，当这个数字大于0时，即可以调用`acquire()`方法增加数量，也可以调用`release()`方法减少数量，但是当调用`release()`之后小于0的话方法就会阻塞，直到数字大于0
+
+```java
+@GetMapping("/park")
+@ResponseBody
+public String park() {
+    RSemaphore park = redissonClient.getSemaphore("park");
+    try {
+        park.acquire(2);
+    } catch (InterruptedException e) {
+        e.printStackTrace();
+    }
+    return "停进2";
+}
+
+@GetMapping("/go")
+@ResponseBody
+public String go() {
+    RSemaphore park = redissonClient.getSemaphore("park");
+    park.release(2);
+    return "开走2";
+}
+```
+
+### 闭锁（CountDownLatch）
+
+可以理解为门栓，使用若干个门栓将当前方法阻塞，只有当全部门栓都被放开时，当前方法才能继续执行。
+
+以下代码只有`offLatch()`被调用5次后 `setLatch()`才能继续执行
+
+```java
+ 	@GetMapping("/setLatch")
+    @ResponseBody
+    public String setLatch() {
+        RCountDownLatch latch = redissonClient.getCountDownLatch("CountDownLatch");
+        try {
+            latch.trySetCount(5);
+            latch.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        return "门栓被放开";
+    }
+
+    @GetMapping("/offLatch")
+    @ResponseBody
+    public String offLatch() {
+        RCountDownLatch latch = redissonClient.getCountDownLatch("CountDownLatch");
+        latch.countDown();
+        return "门栓被放开1";
+    }
+```
+
+闭锁在redis的存储状态
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-09_13-11-45.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-09_13-11-45.png)
+
+## 缓存数据的一致性
+
+### 1. 双写模式
+
+![](./docs/assets/149.png)
+
+当数据更新时，更新数据库时同时更新缓存
+
+**存在问题**
+
+由于卡顿等原因，导致写缓存2在最前，写缓存1在后面就出现了不一致
+
+这是暂时性的脏数据问题，但是在数据稳定，缓存过期以后，又能得到最新的正确数据
+
+### 2. 失效模式
+
+![](./docs/assets/150.png)
+
+数据库更新时将缓存删除
+
+**存在问题**
+
+当两个请求同时修改数据库，一个请求已经更新成功并删除缓存时又有读数据的请求进来，这时候发现缓存中无数据就去数据库中查询并放入缓存，在放入缓存前第二个更新数据库的请求成功，这时候留在缓存中的数据依然是第一次数据更新的数据
+
+**解决方法**
+
+1、缓存的所有数据都有过期时间，数据过期下一次查询触发主动更新 2、读写数据的时候(并且写的不频繁)，加上分布式的读写锁。
+
+## 缓存数据一致性-解决方案
+
+![](./docs/assets/147.png)
+
+![](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-10_20-06-15.png)
+
+我们系统的一致性**解决方案**: 
+
+1、缓存的所有数据都有过期时间，数据过期下一次查询触发主动更新
+
+2、读写数据的时候，加上分布式的**读写锁**。
+
+3、失效模式
+
+偶尔写，经常读
+
+## Spring Cache
+
+- Spring从3.1开始定义了org.springframework.cache.Cache 和 org.springframework.cache.CacheManager 接口来统一不同的缓存技术; 并支持使用 JCache(JSR-107)注解简化我们开发;
+
+- Cache接口为缓存的组件规范定义，包含缓存的各种操作集合;
+   Cache 接口下 Spring 提供了各种 xxxCache 的实现;如 RedisCache，EhCacheCache , ConcurrentMapCache 等;
+
+- 每次调用需要缓存功能的方法时，Spring会检查检查指定参数的指定的目标方法是否已 经被调用过;如果有就直接从缓存中获取方法调用后的结果，如果没有就调用方法并缓 存结果后返回给用户。下次调用直接从缓存中获取。
+
+- 使用Spring缓存抽象时我们需要关注以下两点; 
+  - 1、确定方法需要被缓存以及他们的缓存策略
+  - 2、从缓存中读取之前缓存存储的数据
+
+![](./docs/assets/151.png)
+
+### 整合springCache
+
+简化缓存开发，对于想要缓存读写的请求，就不用写一大堆加锁、写入缓存等代码
+
+1) 引入依赖
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-cache</artifactId>
+</dependency>
+```
+
+2. 自定义配置
+
+```
+					（1）、自动配置了哪些
+*              CacheAuroConfiguration会导入 RedisCacheConfiguration；
+*              自动配好了缓存管理器RedisCacheManager
+*          （2）、配置使用redis作为缓存
+*              spring.cache.type=redis
+3）、测试使用缓存
+ *          @Cacheable: Triggers cache population.：触发将数据保存到缓存的操作
+ *          @CacheEvict: Triggers cache eviction.：触发将数据从缓存删除的操作
+ *          @CachePut: Updates the cache without interfering with the method execution.：不影响方法执行更新缓存
+ *          @Caching: Regroups multiple cache operations to be applied on a method.：组合以上多个操作
+ *          @CacheConfig: Shares some common cache-related settings at class-level.：在类级别共享缓存的相同配置
+ *          1）、开启缓存功能 @EnableCaching
+ *          2）、只需要使用注解就能完成缓存操作
+ *
+ *      4）、原理：
+ *          CacheAutoConfiguration ->  RedisCacheConfiguration ->
+ *          自动配置了RedisCacheManager->初始化所有的缓存->每个缓存决定使用什么配置
+ *          ->如果redisCacheConfiguration有就用已有的，没有就用默认配置
+ *          ->想改缓存的配置，只需要给容器中放一个RedisCacheConfiguration即可
+ *          ->就会应用到当前RedisCacheManager管理的所有缓存分区中
+```
+
+指定缓存类型并在主配置类上加上注解`@EnableCaching`
+
+```yaml
+spring:
+  cache:
+  	#指定缓存类型为redis
+    type: redis
+    redis:
+      ///指定redis中的过期时间为1h
+      time-to-live: 3600000
+```
+
+默认使用jdk进行序列化，自定义序列化方式需要编写配置类
+
+```java
+@Configuration
+public class MyCacheConfig {
+    @Bean
+    public org.springframework.data.redis.cache.RedisCacheConfiguration redisCacheConfiguration(
+            CacheProperties cacheProperties) {
+        CacheProperties.Redis redisProperties = cacheProperties.getRedis();
+        org.springframework.data.redis.cache.RedisCacheConfiguration config = org.springframework.data.redis.cache.RedisCacheConfiguration
+                .defaultCacheConfig();
+        //指定缓存序列化方式为json
+        config = config.serializeValuesWith(
+                RedisSerializationContext.SerializationPair.fromSerializer(new GenericJackson2JsonRedisSerializer()));
+        //设置配置文件中的各项配置，如过期时间
+        if (redisProperties.getTimeToLive() != null) {
+            config = config.entryTtl(redisProperties.getTimeToLive());
+        }
+        if (redisProperties.getKeyPrefix() != null) {
+            config = config.prefixKeysWith(redisProperties.getKeyPrefix());
+        }
+        if (!redisProperties.isCacheNullValues()) {
+            config = config.disableCachingNullValues();
+        }
+        if (!redisProperties.isUseKeyPrefix()) {
+            config = config.disableKeyPrefix();
+        }
+        return config;
+    }
+}
+```
+
+自定义序列化原理
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-10_19-40-20.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-10_19-40-20.png)
+
+缓存使用
+
+```java
+ /**
+     * 1、每一个需要缓存的数据我们都来指定要放到那个名字的缓存。【缓存的分区(按照业务类型分)】
+     * 2、 @Cacheable({"category"})
+     *      代表当前方法的结果需要缓存，如果缓存中有，方法不用调用。
+     *      如果缓存中没有，会调用方法，最后将方法的结果放入缓存
+     * 3、默认行为
+     *      1）、如果缓存中有，方法不用调用。
+     *      2）、key默认自动生成；缓存的名字::SimpleKey [](自主生成的key值)
+     *      3）、缓存的value的值。默认使用jdk序列化机制，将序列化后的数据存到redis
+     *      4）、默认ttl时间 -1；
+     *
+     *    自定义：
+     *      1）、指定生成的缓存使用的key：  key属性指定，接受一个SpEL
+     *             SpEL的详细https://docs.spring.io/spring/docs/5.1.12.RELEASE/spring-framework-reference/integration.html#cache-spel-context
+     *      2）、指定缓存的数据的存活时间： 配置文件中修改ttl
+     *      3）、将数据保存为json格式:
+     *              自定义RedisCacheConfiguration即可
+     * 4、Spring-Cache的不足；
+     *      1）、读模式：
+     *          缓存穿透：查询一个null数据。解决：缓存空数据；ache-null-values=true
+     *          缓存击穿：大量并发进来同时查询一个正好过期的数据。解决：加锁；？默认是无加锁的;sync = true（加锁，解决击穿）
+     *          缓存雪崩：大量的key同时过期。解决：加随机时间。加上过期时间。：spring.cache.redis.time-to-live=3600000
+     *      2）、写模式：（缓存与数据库一致）
+     *          1）、读写加锁。
+     *          2）、引入Canal，感知到MySQL的更新去更新数据库
+     *          3）、读多写多，直接去数据库查询就行
+     *    总结：
+     *      常规数据（读多写少，即时性，一致性要求不高的数据）；完全可以使用Spring-Cache；写模式（只要缓存的数据有过期时间就足够了）
+     *      特殊数据：特殊设计
+     *
+     *   原理：
+     *      CacheManager(RedisCacheManager)->Cache(RedisCache)->Cache负责缓存的读写
+     *
+     *
+     * @return
+     */
+    @Cacheable(value = {"category"},key = "#root.method.name",sync = true)
+    @Override
+    public List<CategoryEntity> getLevel1Categorys() {
+        System.out.println("getLevel1Categorys.....");
+        long l = System.currentTimeMillis();
+        List<CategoryEntity> categoryEntities = baseMapper.selectList(new QueryWrapper<CategoryEntity>().eq("parent_cid", 0));
+        return categoryEntities;
+    }
+```
+
+```java
+  	//调用该方法时会将结果缓存，缓存名为category，key为方法名
+	//表示该方法的缓存被读取时会加锁
+	@Cacheable(value = {"category"},key = "#root.methodName",sync = true)
+    public Map<String, List<Catalog2Vo>> getCatalogJsonDbWithSpringCache() {
+        return getCategoriesDb();
+    }
+
+	//调用该方法会删除缓存category下的所有cache
+    @Override
+    @CacheEvict(value = {"category"},allEntries = true)
+    public void updateCascade(CategoryEntity category) {
+        this.updateById(category);
+        if (!StringUtils.isEmpty(category.getName())) {
+            categoryBrandRelationService.updateCategory(category);
+        }
+    }
+```
+
+第一个方法缓存结果后
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-10_20-03-46.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-10_20-03-46.png)
+
+第二个方法调用清除缓存后
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-10_20-05-15.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-10_20-05-15.png)
+
+### Spring-Cache的不足之处
+
+1）、读模式
+
+缓存穿透：查询一个null数据。解决方案：缓存空数据，可通过`spring.cache.redis.cache-null-values=true`
+
+缓存击穿：大量并发进来同时查询一个正好过期的数据。解决方案：加锁 ? 默认是无加锁的;
+
+使用sync = true来解决击穿问题 
+
+缓存雪崩：大量的key同时过期。解决：加随机时间。加上过期时间
+
+2)、写模式：（缓存与数据库一致）
+
+a、读写加锁。
+
+b、引入Canal,感知到MySQL的更新去更新Redis
+
+c 、读多写多，直接去数据库查询就行
+
+3）、总结：
+
+常规数据（读多写少，即时性，一致性要求不高的数据，完全可以使用Spring-Cache）：
+
+写模式(只要缓存的数据有过期时间就足够了)
+
+特殊数据：特殊设计
+
+# 首页请求数据的读写策略
+
+![](./docs/assets/153.png)
 
 # 商城检索
 
