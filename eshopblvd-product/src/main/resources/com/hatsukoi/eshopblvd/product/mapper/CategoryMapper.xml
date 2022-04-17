@@ -332,4 +332,36 @@
       product_count = #{productCount,jdbcType=INTEGER}
     where cat_id = #{catId,jdbcType=BIGINT}
   </update>
+  <update id="batchUpdateSelective">
+    <foreach collection="categories" item="item" index="index" separator=";">
+      UPDATE `pms_category`
+      <trim prefix="set" suffixOverrides=",">
+        <if test="item.name != null">
+          name = #{item.name,jdbcType=CHAR},
+        </if>
+        <if test="item.parentCid != null">
+          parent_cid = #{item.parentCid,jdbcType=BIGINT},
+        </if>
+        <if test="item.catLevel != null">
+          cat_level = #{item.catLevel,jdbcType=INTEGER},
+        </if>
+        <if test="item.showStatus != null">
+          show_status = #{item.showStatus,jdbcType=TINYINT},
+        </if>
+        <if test="item.sort != null">
+          sort = #{item.sort,jdbcType=INTEGER},
+        </if>
+        <if test="item.icon != null">
+          icon = #{item.icon,jdbcType=CHAR},
+        </if>
+        <if test="item.productUnit != null">
+          product_unit = #{item.productUnit,jdbcType=CHAR},
+        </if>
+        <if test="item.productCount != null">
+          product_count = #{item.productCount,jdbcType=INTEGER},
+        </if>
+      </trim>
+      where cat_id = #{item.catId,jdbcType=BIGINT}
+    </foreach>
+  </update>
 </mapper>

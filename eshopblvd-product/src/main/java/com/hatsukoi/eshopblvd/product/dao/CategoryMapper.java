@@ -94,5 +94,5 @@ public interface CategoryMapper {
      */
     int updateByPrimaryKey(Category record);
 
-    int batchUpdateSelective(List<Category> categories);
+    int batchUpdateSelective(@Param("categories") List<Category> categories);
 }

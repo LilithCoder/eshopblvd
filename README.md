@@ -105,6 +105,9 @@ $ docker image rm
 
 查看某一容器的日志，排查错误
 docker logs ${容器名}
+
+查看容器的cpu占用率、内存使用
+docker stats
 ```
 
 配置docker阿里云镜像加速
@@ -7520,3 +7523,4 @@ public class SkuEsModel {
 结果验证正确，成功上架
 
 ![](./docs/assets/84.png)
+

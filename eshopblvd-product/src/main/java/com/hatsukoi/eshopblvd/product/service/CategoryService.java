@@ -1,9 +1,11 @@
 package com.hatsukoi.eshopblvd.product.service;
 
 import com.hatsukoi.eshopblvd.product.entity.Category;
+import com.hatsukoi.eshopblvd.product.vo.CatalogVO;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author gaoweilin
@@ -23,4 +25,6 @@ public interface CategoryService {
     void batchUpdateCategories(@Param("categories") List<Category> categories);
 
     Long[] getCatelogPath(Long catelogId);
+
+    Map<String, Object> getHomepageInitData();
 }
