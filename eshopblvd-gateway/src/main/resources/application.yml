@@ -43,6 +43,11 @@ spring:
           predicates:
             - Host=eshopblvd.com,item.eshopblvd.com
 
+        - id: eshopblvd_search_route
+            uri: lb://eshopblvd-search
+            predicates:
+              - Host=search.eshopblvd.com
+
   application:
     name: eshopblvd-gateway
 

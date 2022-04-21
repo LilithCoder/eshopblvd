@@ -1751,4 +1751,1561 @@ c 、读多写多，直接去数据库查询就行
 
 # 商城检索
 
+## 业务逻辑
+
+![](./docs/assets/158.png)
+
 检索微服务
+
+~~检索页的静态资源放在`/mydata/nginx/html/static/search`~~我们的前端用vue写
+
+## 域名解析映射
+
+```shell
+nginx服务器ip地址 search.gulimall.com
+```
+
+## 添加nginx、网关路由规则
+
+```shell
+cd /mydata/nginx/conf/conf.d && vi eshopblvd.conf
+
+添加：
+listen      80;
+server_name eshopblvd.com  *.eshopblvd.com; # 任何eshopblvd.com为根域名的域名都可以转发到网关
+
+docker restart nginx
+```
+
+将search.eshopblvd.com的请求都转发到search服务
+
+ ```yaml
+        - id: eshopblvd_search_route
+             uri: lb://eshopblvd-search
+             predicates:
+               - Host=search.eshopblvd.com
+ ```
+
+实现类似转发效果
+
+![](./docs/assets/155.png)
+
+## 新增【接口】商品检索
+
+### 检索条件分析
+
+![](./docs/assets/156.png)
+
+![](./docs/assets/157.png)
+
+### 请求参数的封装
+
+```java
+@Data
+public class SearchParam {
+    //页面传递过来的全文匹配关键字
+    private String keyword;
+
+    //品牌id,可以多选
+    private List<Long> brandId;
+
+    //三级分类id
+    private Long catalog3Id;
+
+    //排序条件：sort=price/salecount/hotscore_desc/asc
+    private String sort;
+
+    //是否显示有货
+    private Integer hasStock;
+
+    //价格区间查询
+    private String skuPrice;
+
+    //按照属性进行筛选
+    private List<String> attrs;
+
+    //页码
+    private Integer pageNum = 1;
+
+    //原生的所有查询条件
+    private String _queryString;
+
+}
+```
+
+### 检索返回结果模型
+
+```java
+@Data
+public class SearchResult {
+    //查询到的所有商品信息
+    private List<SkuEsModel> product;
+
+    //当前页码
+    private Integer pageNum;
+
+    //总记录数
+    private Long total;
+
+    //总页码
+    private Integer totalPages;
+	//页码遍历结果集(分页)
+    private List<Integer> pageNavs;
+
+    //当前查询到的结果，所有涉及到的品牌
+    private List<BrandVo> brands;
+
+    //当前查询到的结果，所有涉及到的所有属性
+    private List<AttrVo> attrs;
+
+    //当前查询到的结果，所有涉及到的所有分类
+    private List<CatalogVo> catalogs;
+
+
+    //===========================以上是返回给页面的所有信息============================//
+
+
+    /* 面包屑导航数据 */
+    private List<NavVo> navs;
+
+    @Data
+    public static class NavVo {
+        private String navName;
+        private String navValue;
+        private String link;
+    }
+
+
+    @Data
+    @AllArgsConstructor
+    public static class BrandVo {
+
+        private Long brandId;
+
+        private String brandName;
+
+        private String brandImg;
+    }
+
+
+    @Data
+    @AllArgsConstructor
+    public static class AttrVo {
+
+        private Long attrId;
+
+        private String attrName;
+
+        private List<String> attrValue;
+    }
+
+
+    @Data
+    @AllArgsConstructor
+    public static class CatalogVo {
+
+        private Long catalogId;
+
+        private String catalogName;
+    }
+}
+```
+
+### es DSL分析
+
+模糊匹配、过滤（属性、分类、品牌、价格区间、库存）、排序、分页、高亮
+
+聚合分析：查出来的这些sku有哪些品牌、有哪些分类、有哪些属性（如果是嵌入式的属性，查询、聚合、分析都应该用嵌入式的方式）
+
+```json
+GET eshopblvd_product/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "skuTitle": "华为"
+          }
+        }
+      ],
+      "filter": [
+        {
+            "term": {
+              "catalogId": "225"
+            }
+        },
+        {
+            "terms": {
+            "brandId": [
+              "1",
+              "2"
+            ]
+          }
+        },
+        {
+          "term": {
+            "hasStock": "false"
+          }
+        },
+        {
+          "range": {
+            "skuPrice": {
+              "gte": 1000,
+              "lte": 7000
+            }
+          }
+        },
+        {
+          "nested": {
+            "path": "attrs",
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "attrs.attrId": {
+                        "value": "6"
+                      }
+                    }
+                  },
+                  {
+                    "term": {
+                      "attrs.attrValue": [
+                        "xxx1",
+                        "xxx2"
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "sort": [
+    {
+      "skuPrice": {
+        "order": "desc"
+      }
+    }
+  ],
+  "from": 0,
+  "size": 5,
+  "highlight": {
+    "fields": {"skuTitle": {}},
+    "pre_tags": "<b style='color:red'>", 
+    "post_tags": "</b>"
+  },
+  "aggs": {
+    "brandAgg": {
+      "terms": {
+        "field": "brandId",
+        "size": 10
+      },
+      "aggs": { #子聚合，获取这个品牌id对应的品牌名字和图片
+        "brandNameAgg": {
+          "terms": {
+            "field": "brandName",
+            "size": 10
+          }
+        },
+      
+        "brandImgAgg": {
+          "terms": {
+            "field": "brandImg",
+            "size": 10
+          }
+        }
+        
+      }
+    },
+    "catalogAgg":{
+      "terms": {
+        "field": "catalogId",
+        "size": 10
+      },
+      "aggs": { # 子聚合看每个分类id对应的分类名是什么
+        "catalogNameAgg": {
+          "terms": {
+            "field": "catalogName",
+            "size": 10
+          }
+        }
+      }
+    },
+    "attrs":{
+      "nested": {
+        "path": "attrs"
+      },
+      "aggs": {
+        "attrIdAgg": {
+          "terms": {
+            "field": "attrs.attrId",
+            "size": 10
+          },
+          "aggs": {
+            "attrNameAgg": { # 子聚合看属性名
+              "terms": {
+                "field": "attrs.attrName",
+                "size": 10
+              }
+            },
+            "attrValueAgg": { # 子聚合看属性值们
+              "terms": {
+                "field": "attrs.attrValue",
+                "size": 10
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### 主体逻辑
+
+主要逻辑在service层进行，service层将封装好的`SearchParam`组建查询条件，再将返回后的结果封装成`SearchResult`
+
+```
+```
+
+### 构建查询条件
+
+这一部分就是对着前面分析的DSL，将每个条件封装进请求中
+
+```
+
+```
+
+### 封装响应结果
+
+```
+
+```
+
+## 页面效果(Vue)
+
+#### 1) 基本数据渲染
+
+将商品的基本属性渲染出来
+
+```
+<div class="rig_tab">
+    <!-- 遍历各个商品-->
+    <div th:each="product : ${result.getProduct()}">
+        <div class="ico">
+            <i class="iconfont icon-weiguanzhu"></i>
+            <a href="/static/search/#">关注</a>
+        </div>
+        <p class="da">
+            <a th:href="|http://item.gulimall.com/${product.skuId}.html|" >
+                <!--图片 -->
+                <img   class="dim" th:src="${product.skuImg}">
+            </a>
+        </p>
+        <ul class="tab_im">
+            <li><a href="/static/search/#" title="黑色">
+                <img th:src="${product.skuImg}"></a></li>
+        </ul>
+        <p class="tab_R">
+              <!-- 价格 -->
+            <span th:text="'￥' + ${product.skuPrice}">¥5199.00</span>
+        </p>
+        <p class="tab_JE">
+            <!-- 标题 -->
+            <!-- 使用utext标签,使检索时高亮不会被转义-->
+            <a href="/static/search/#" th:utext="${product.skuTitle}">
+                Apple iPhone 7 Plus (A1661) 32G 黑色 移动联通电信4G手机
+            </a>
+        </p>
+        <p class="tab_PI">已有<span>11万+</span>热门评价
+            <a href="/static/search/#">二手有售</a>
+        </p>
+        <p class="tab_CP"><a href="/static/search/#" title="谷粒商城Apple产品专营店">谷粒商城Apple产品...</a>
+            <a href='#' title="联系供应商进行咨询">
+                <img src="/static/search/img/xcxc.png">
+            </a>
+        </p>
+        <div class="tab_FO">
+            <div class="FO_one">
+                <p>自营
+                    <span>谷粒商城自营,品质保证</span>
+                </p>
+                <p>满赠
+                    <span>该商品参加满赠活动</span>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+```
+
+#### 2) 筛选条件渲染
+
+将结果的品牌、分类、商品属性进行遍历显示，并且点击某个属性值时可以通过拼接url进行跳转
+
+```
+<div class="JD_nav_logo">
+    <!--品牌-->
+    <div class="JD_nav_wrap">
+        <div class="sl_key">
+            <span>品牌：</span>
+        </div>
+        <div class="sl_value">
+            <div class="sl_value_logo">
+                <ul>
+                    <li th:each="brand: ${result.getBrands()}">
+                        <!--替换url-->
+                        <a href="#"  th:href="${'javascript:searchProducts(&quot;brandId&quot;,'+brand.brandId+')'}">
+                            <img src="/static/search/img/598033b4nd6055897.jpg" alt="" th:src="${brand.brandImg}">
+                            <div th:text="${brand.brandName}">
+                                华为(HUAWEI)
+                            </div>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <div class="sl_ext">
+            <a href="#">
+                更多
+                <i style='background: url("image/search.ele.png")no-repeat 3px 7px'></i>
+                <b style='background: url("image/search.ele.png")no-repeat 3px -44px'></b>
+            </a>
+            <a href="#">
+                多选
+                <i>+</i>
+                <span>+</span>
+            </a>
+        </div>
+    </div>
+    <!--分类-->
+    <div class="JD_pre" th:each="catalog: ${result.getCatalogs()}">
+        <div class="sl_key">
+            <span>分类：</span>
+        </div>
+        <div class="sl_value">
+            <ul>
+                <li><a href="#" th:text="${catalog.getCatalogName()}" th:href="${'javascript:searchProducts(&quot;catalogId&quot;,'+catalog.catalogId+')'}">0-安卓（Android）</a></li>
+            </ul>
+        </div>
+    </div>
+    <!--价格-->
+    <div class="JD_pre">
+        <div class="sl_key">
+            <span>价格：</span>
+        </div>
+        <div class="sl_value">
+            <ul>
+                <li><a href="#">0-499</a></li>
+                <li><a href="#">500-999</a></li>
+                <li><a href="#">1000-1699</a></li>
+                <li><a href="#">1700-2799</a></li>
+                <li><a href="#">2800-4499</a></li>
+                <li><a href="#">4500-11999</a></li>
+                <li><a href="#">12000以上</a></li>
+                <li class="sl_value_li">
+                    <input type="text">
+                    <p>-</p>
+                    <input type="text">
+                    <a href="#">确定</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <!--商品属性-->
+    <div class="JD_pre" th:each="attr: ${result.getAttrs()}" >
+        <div class="sl_key">
+            <span th:text="${attr.getAttrName()}">系统：</span>
+        </div>
+        <div class="sl_value">
+            <ul>
+                <li th:each="val: ${attr.getAttrValue()}">
+                    <a href="#"
+                       th:text="${val}"
+                       th:href="${'javascript:searchProducts(&quot;attrs&quot;,&quot;'+attr.attrId+'_'+val+'&quot;)'}">0-安卓（Android）</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+function searchProducts(name, value) {
+    //原來的页面
+    location.href = replaceParamVal(location.href,name,value,true)
+};
+
+   /**
+     * @param url 目前的url
+     * @param paramName 需要替换的参数属性名
+     * @param replaceVal 需要替换的参数的新属性值
+     * @param forceAdd 该参数是否可以重复查询(attrs=1_3G:4G:5G&attrs=2_骁龙845&attrs=4_高清屏)
+     * @returns {string} 替换或添加后的url
+     */
+function replaceParamVal(url, paramName, replaceVal,forceAdd) {
+    var oUrl = url.toString();
+    var nUrl;
+    if (oUrl.indexOf(paramName) != -1) {
+        if( forceAdd && oUrl.indexOf(paramName+"="+replaceVal)==-1) {
+            if (oUrl.indexOf("?") != -1) {
+                nUrl = oUrl + "&" + paramName + "=" + replaceVal;
+            } else {
+                nUrl = oUrl + "?" + paramName + "=" + replaceVal;
+            }
+        } else {
+            var re = eval('/(' + paramName + '=)([^&]*)/gi');
+            nUrl = oUrl.replace(re, paramName + '=' + replaceVal);
+        }
+    } else {
+        if (oUrl.indexOf("?") != -1) {
+            nUrl = oUrl + "&" + paramName + "=" + replaceVal;
+        } else {
+            nUrl = oUrl + "?" + paramName + "=" + replaceVal;
+        }
+    }
+    return nUrl;
+};
+```
+
+#### 3) 分页数据渲染
+
+将页码绑定至属性pn，当点击某页码时，通过获取pn值进行url拼接跳转页面
+
+```
+<div class="filter_page">
+    <div class="page_wrap">
+        <span class="page_span1">
+               <!-- 不是第一页时显示上一页 -->
+            <a class="page_a" href="#" th:if="${result.pageNum>1}" th:attr="pn=${result.getPageNum()-1}">
+                < 上一页
+            </a>
+             <!-- 将各个页码遍历显示，并将当前页码绑定至属性pn -->
+            <a href="#" class="page_a"
+               th:each="page: ${result.pageNavs}"
+               th:text="${page}"
+               th:style="${page==result.pageNum?'border: 0;color:#ee2222;background: #fff':''}"
+               th:attr="pn=${page}"
+            >1</a>
+              <!-- 不是最后一页时显示下一页 -->
+            <a href="#" class="page_a" th:if="${result.pageNum<result.totalPages}" th:attr="pn=${result.getPageNum()+1}">
+                下一页 >
+            </a>
+        </span>
+        <span class="page_span2">
+            <em>共<b th:text="${result.totalPages}">169</b>页&nbsp;&nbsp;到第</em>
+            <input type="number" value="1" class="page_input">
+            <em>页</em>
+            <a href="#">确定</a>
+        </span>
+    </div>
+</div>
+$(".page_a").click(function () {
+    var pn=$(this).attr("pn");
+    location.href=replaceParamVal(location.href,"pageNum",pn,false);
+    console.log(replaceParamVal(location.href,"pageNum",pn,false))
+})
+```
+
+#### 4) 页面排序和价格区间
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-18_12-47-55.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-18_12-47-55.png)
+
+页面排序功能需要保证，点击某个按钮时，样式会变红，并且其他的样式保持最初的样子；
+
+点击某个排序时首先按升序显示，再次点击再变为降序，并且还会显示上升或下降箭头
+
+页面排序跳转的思路是通过点击某个按钮时会向其`class`属性添加/去除`desc`，并根据属性值进行url拼接
+
+```
+<div class="filter_top">
+    <div class="filter_top_left" th:with="p = ${param.sort}, priceRange = ${param.skuPrice}">
+        <!-- 通过判断当前class是否有desc来进行样式的渲染和箭头的显示-->
+        <a sort="hotScore"
+           th:class="${(!#strings.isEmpty(p) && #strings.startsWith(p,'hotScore') && #strings.endsWith(p,'desc')) ? 'sort_a desc' : 'sort_a'}"
+           th:attr="style=${(#strings.isEmpty(p) || #strings.startsWith(p,'hotScore')) ?
+               'color: #fff; border-color: #e4393c; background: #e4393c;':'color: #333; border-color: #ccc; background: #fff;' }">
+            综合排序[[${(!#strings.isEmpty(p) && #strings.startsWith(p,'hotScore') &&
+            #strings.endsWith(p,'desc')) ?'↓':'↑' }]]</a>
+        <a sort="saleCount"
+           th:class="${(!#strings.isEmpty(p) && #strings.startsWith(p,'saleCount') && #strings.endsWith(p,'desc')) ? 'sort_a desc' : 'sort_a'}"
+           th:attr="style=${(!#strings.isEmpty(p) && #strings.startsWith(p,'saleCount')) ?
+               'color: #fff; border-color: #e4393c; background: #e4393c;':'color: #333; border-color: #ccc; background: #fff;' }">
+            销量[[${(!#strings.isEmpty(p) && #strings.startsWith(p,'saleCount') &&
+            #strings.endsWith(p,'desc'))?'↓':'↑'  }]]</a>
+        <a sort="skuPrice"
+           th:class="${(!#strings.isEmpty(p) && #strings.startsWith(p,'skuPrice') && #strings.endsWith(p,'desc')) ? 'sort_a desc' : 'sort_a'}"
+           th:attr="style=${(!#strings.isEmpty(p) && #strings.startsWith(p,'skuPrice')) ?
+               'color: #fff; border-color: #e4393c; background: #e4393c;':'color: #333; border-color: #ccc; background: #fff;' }">
+            价格[[${(!#strings.isEmpty(p) && #strings.startsWith(p,'skuPrice') &&
+            #strings.endsWith(p,'desc'))?'↓':'↑'  }]]</a>
+        <a sort="hotScore" class="sort_a">评论分</a>
+        <a sort="hotScore" class="sort_a">上架时间</a>
+        <!--价格区间搜索-->
+        <input id="skuPriceFrom" type="number"
+               th:value="${#strings.isEmpty(priceRange)?'':#strings.substringBefore(priceRange,'_')}"
+               style="width: 100px; margin-left: 30px">
+        -
+        <input id="skuPriceTo" type="number"
+               th:value="${#strings.isEmpty(priceRange)?'':#strings.substringAfter(priceRange,'_')}"
+               style="width: 100px">
+        <button id="skuPriceSearchBtn">确定</button>
+    </div>
+    <div class="filter_top_right">
+        <span class="fp-text">
+           <b>1</b><em>/</em><i>169</i>
+       </span>
+        <a href="#" class="prev"><</a>
+        <a href="#" class="next"> > </a>
+    </div>
+</div>
+$(".sort_a").click(function () {
+    	//添加、剔除desc
+        $(this).toggleClass("desc");
+    	//获取sort属性值并进行url跳转
+        let sort = $(this).attr("sort");
+        sort = $(this).hasClass("desc") ? sort + "_desc" : sort + "_asc";
+        location.href = replaceParamVal(location.href, "sort", sort,false);
+        return false;
+    });
+```
+
+价格区间搜索函数
+
+```
+$("#skuPriceSearchBtn").click(function () {
+    var skuPriceFrom = $("#skuPriceFrom").val();
+    var skuPriceTo = $("#skuPriceTo").val();
+    location.href = replaceParamVal(location.href, "skuPrice", skuPriceFrom + "_" + skuPriceTo, false);
+})
+```
+
+#### 5) 面包屑导航
+
+在封装结果时，将查询的属性值进行封装
+
+```
+   // 6. 构建面包屑导航
+        List<String> attrs = searchParam.getAttrs();
+        if (attrs != null && attrs.size() > 0) {
+            List<SearchResult.NavVo> navVos = attrs.stream().map(attr -> {
+                String[] split = attr.split("_");
+                SearchResult.NavVo navVo = new SearchResult.NavVo();
+                //6.1 设置属性值
+                navVo.setNavValue(split[1]);
+                //6.2 查询并设置属性名
+                try {
+                    R r = productFeignService.info(Long.parseLong(split[0]));
+                    if (r.getCode() == 0) {
+                        AttrResponseVo attrResponseVo = JSON.parseObject(JSON.toJSONString(r.get("attr")), new TypeReference<AttrResponseVo>() {
+                        });
+                        navVo.setNavName(attrResponseVo.getAttrName());
+                    }
+                } catch (Exception e) {
+                    log.error("远程调用商品服务查询属性失败", e);
+                }
+                //6.3 设置面包屑跳转链接(当点击该链接时剔除点击属性)
+                String queryString = searchParam.get_queryString();
+                String replace = queryString.replace("&attrs=" + attr, "").replace("attrs=" + attr+"&", "").replace("attrs=" + attr, "");
+                navVo.setLink("http://search.gulimall.com/search.html" + (replace.isEmpty()?"":"?"+replace));
+                return navVo;
+            }).collect(Collectors.toList());
+            result.setNavs(navVos);
+        }
+```
+
+页面渲染
+
+```
+<div class="JD_ipone_one c">
+    <!-- 遍历面包屑功能 -->
+    <a th:href="${nav.link}" th:each="nav:${result.navs}"><span th:text="${nav.navName}"></span>：<span th:text="${nav.navValue}"></span> x</a>
+</div>
+```
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-18_12-59-52.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-18_12-59-52.png)
+
+#### 6) 条件筛选联动
+
+就是将品牌和分类也封装进面包屑数据中，并且在页面进行th:if的判断，当url有该属性的查询条件时就不进行显示了
+
+# 异步&线程池
+
+## 线程
+
+### 初始化线程的 4 种方式
+
+![](./docs/assets/159.png)
+
+```java
+// 继承Thread
+Thread01 thread = new Thread01();
+thread.start();//启动线程
+
+// 实现Runnable接口
+Runable01 runable01 = new Runable01();
+new Thread(runable01).start();
+
+// 实现Callable接口 + FutureTask （可以拿到返回结果，可以处理异常）
+FutureTask<Integer> futureTask = new FutureTask<>(new Callable01());
+new Thread(futureTask).start();
+// 阻塞等待整个线程执行完成，获取返回结果
+Integer integer = futureTask.get();
+		
+		public static class Thread01 extends Thread{
+        @Override
+        public void run() {
+            System.out.println("当前线程："+Thread.currentThread().getId());
+            int i = 10 / 2;
+            System.out.println("运行结果："+i);
+        }
+    }
+
+    public static class Runable01 implements Runnable{
+
+        @Override
+        public void run() {
+            System.out.println("当前线程："+Thread.currentThread().getId());
+            int i = 10 / 2;
+            System.out.println("运行结果："+i);
+        }
+    }
+
+    public static class Callable01 implements Callable<Integer>{
+
+        @Override
+        public Integer call() throws Exception {
+            System.out.println("当前线程："+Thread.currentThread().getId());
+            int i = 10 / 2;
+            System.out.println("运行结果："+i);
+            return i;
+        }
+    }
+```
+
+### 线程池
+
+业务代码里面，以上三种启动线程的方式都不用。【将所有的多线程异步任务都交给线程池执行】
+
+当前系统中池只有一两个，每个异步任务，提交给线程池让他自己去执行就行
+
+
+
+```java
+public static ExecutorService executor = Executors.newFixedThreadPool(10);
+public static void main(String[] args) {
+  
+}
+```
+
+#### 1) 线程池创建
+
+##### 线程池的七大参数
+
+###### corePoolSize
+
+![](./docs/assets/160.png)
+
+###### maximumPoolSize
+
+![](./docs/assets/161.png)
+
+###### keepAliveTime
+
+![](./docs/assets/162.png)
+
+###### unit
+
+![](./docs/assets/163.png)
+
+###### workQueue
+
+![](./docs/assets/164.png)
+
+###### threadFactory
+
+![](./docs/assets/165.png)
+
+###### handler
+
+![](./docs/assets/166.png)
+
+![](./docs/assets/167.png)
+
+##### 运行流程
+
+ 1、线程池创建，准备好 core 数量的核心线程，准备接受任务 
+
+2、新的任务进来，用 core 准备好的空闲线程执行。
+
+​	(1)  、core满了，就将再进来的任务放入阻塞队列中。空闲的core就会自己去阻塞队 列获取任务执行
+
+​	(2)  、阻塞队列满了，就直接开新线程执行，最大只能开到max指定的数量
+
+​	(3)  、max都执行好了。Max-core数量空闲的线程会在keepAliveTime指定的时间后自动销毁。最终保持到core 大小
+
+​	(4)  、如果线程数开到了max的数量，还有新任务进来，就会使用reject指定的拒绝策略进行处理
+
+3、所有的线程创建都是由指定的 factory 创建的。
+
+```java
+ThreadPoolExecutor executor = new ThreadPoolExecutor(5,
+                200,
+                10,
+                TimeUnit.SECONDS,
+                new LinkedBlockingDeque<>(100000),
+                Executors.defaultThreadFactory(),
+                new ThreadPoolExecutor.AbortPolicy());
+```
+
+
+
+##### 面试题 
+
+一个线程池 **core 7**; **max 20** ，**queue**:**50**，**100** 并发进来怎么分配的;
+ 先有 7 个能直接得到执行，接下来 50 个进入队列排队，在多开 13 个继续执行。现在 70 个 被安排上了。剩下 30 个默认拒绝策略
+
+
+
+##### Executor中常见的线程池
+
+- newCachedThreadPool
+
+  创建一个可缓存线程池，如果线程池长度超过处理需要，可灵活回收空闲线程，若无可回收，则新建线程。
+
+- newFixedThreadPool
+  创建一个定长线程池，可控制线程最大并发数，超出的线程会在队列中等待。
+
+- newScheduledThreadPool
+
+  创建一个定长线程池，支持定时及周期性任务执行。
+
+- newSingleThreadExecutor
+
+  创建一个单线程化的线程池，它只会用唯一的工作线程来执行任务，保证所有任务按照指定顺序(FIFO, LIFO, 优先级)执行。
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-19_19-43-21.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-19_19-43-21.png)
+
+#### 2) 核心线程池的内部实现
+
+##### (1) 内部实现
+
+```java
+public static ExecutorService newFixedThreadPool(int nThreads) {
+    return new ThreadPoolExecutor(nThreads, nThreads,
+                                  0L, TimeUnit.MILLISECONDS,
+                                  new LinkedBlockingQueue<Runnable>());
+}
+
+public static ExecutorService newSingleThreadExecutor() {
+        return new FinalizableDelegatedExecutorService
+            (new ThreadPoolExecutor(1, 1,
+                                    0L, TimeUnit.MILLISECONDS,
+                                    new LinkedBlockingQueue<Runnable>()));
+    }
+
+ public static ExecutorService newCachedThreadPool() {
+        return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+                                      60L, TimeUnit.SECONDS,
+                                      new SynchronousQueue<Runnable>());
+    }
+```
+
+核心线程池只是`ThreadPoolExecutor`的封装
+
+```java
+ /**
+     * Creates a new {@code ThreadPoolExecutor} with the given initial
+     * parameters.
+     *
+     * @param corePoolSize the number of threads to keep in the pool, even
+     *        if they are idle, unless {@code allowCoreThreadTimeOut} is set
+     * @param maximumPoolSize the maximum number of threads to allow in the
+     *        pool
+     * @param keepAliveTime when the number of threads is greater than
+     *        the core, this is the maximum time that excess idle threads
+     *        will wait for new tasks before terminating.
+     * @param unit the time unit for the {@code keepAliveTime} argument
+     * @param workQueue the queue to use for holding tasks before they are
+     *        executed.  This queue will hold only the {@code Runnable}
+     *        tasks submitted by the {@code execute} method.
+     * @param threadFactory the factory to use when the executor
+     *        creates a new thread
+     * @param handler the handler to use when execution is blocked
+     *        because the thread bounds and queue capacities are reached
+     * @throws IllegalArgumentException if one of the following holds:<br>
+     *         {@code corePoolSize < 0}<br>
+     *         {@code keepAliveTime < 0}<br>
+     *         {@code maximumPoolSize <= 0}<br>
+     *         {@code maximumPoolSize < corePoolSize}
+     * @throws NullPointerException if {@code workQueue}
+     *         or {@code threadFactory} or {@code handler} is null
+     */
+    public ThreadPoolExecutor(int corePoolSize,
+                              int maximumPoolSize,
+                              long keepAliveTime,
+                              TimeUnit unit,
+                              BlockingQueue<Runnable> workQueue,
+                              ThreadFactory threadFactory,
+                              RejectedExecutionHandler handler) {
+        if (corePoolSize < 0 ||
+            maximumPoolSize <= 0 ||
+            maximumPoolSize < corePoolSize ||
+            keepAliveTime < 0)
+            throw new IllegalArgumentException();
+        if (workQueue == null || threadFactory == null || handler == null)
+            throw new NullPointerException();
+        this.corePoolSize = corePoolSize;
+        this.maximumPoolSize = maximumPoolSize;
+        this.workQueue = workQueue;
+        this.keepAliveTime = unit.toNanos(keepAliveTime);
+        this.threadFactory = threadFactory;
+        this.handler = handler;
+    }
+```
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-19_19-52-21.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-19_19-52-21.png)
+
+##### (2) 任务队列的说明
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-19_19-53-40.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-19_19-53-40.png)
+
+##### (3) 线程池的的调度逻辑
+
+```java
+public void execute(Runnable command) {
+    if (command == null)
+        throw new NullPointerException();
+  
+    int c = ctl.get();
+    //5 
+    if (workerCountOf(c) < corePoolSize) {
+        if (addWorker(command, true))
+            return;
+        c = ctl.get();
+    }
+    //10
+    if (isRunning(c) && workQueue.offer(command)) {
+        int recheck = ctl.get();
+        if (! isRunning(recheck) && remove(command))
+            reject(command);
+        else if (workerCountOf(recheck) == 0)
+            addWorker(null, false);
+    }
+    //17
+    else if (!addWorker(command, false))
+        reject(command);
+}
+```
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-19_20-02-47.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-19_20-02-47.png)
+
+##### (4) 拒绝策略
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-19_20-12-45.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-19_20-12-45.png)
+
+#### 3) 开发中为什么使用线程池
+
+- 降低资源的消耗
+  - 通过重复利用已经创建好的线程降低线程的创建和销毁带来的损耗
+- 提高响应速度
+  - 因为线程池中的线程数没有超过线程池的最大上限时，有的线程处于等待分配任务的状态，当任务来时无需创建新的线程就能执行
+- 提高线程的可管理性
+  - 线程池会根据当前系统特点对池内的线程进行优化处理，减少创建和销毁线程带来 的系统开销。无限的创建和销毁线程不仅消耗系统资源，还降低系统的稳定性，使 用线程池进行统一分配
+
+## CompletableFuture异步编程
+
+![](./docs/assets/168.png)
+
+![](./docs/assets/169.png)
+
+### (1) runAsync 和 supplyAsync方法
+
+CompletableFuture 提供了四个静态方法来创建一个异步操作。
+
+```java
+public static CompletableFuture<Void> runAsync(Runnable runnable)
+public static CompletableFuture<Void> runAsync(Runnable runnable, Executor executor)
+public static <U> CompletableFuture<U> supplyAsync(Supplier<U> supplier)
+public static <U> CompletableFuture<U> supplyAsync(Supplier<U> supplier, Executor executor)
+```
+
+没有指定Executor的方法会使用ForkJoinPool.commonPool() 作为它的线程池执行异步代码。如果指定线程池，则使用指定的线程池运行。以下所有的方法都类同。
+
+- runAsync方法不支持返回值。
+- supplyAsync可以支持返回值。
+
+```java
+public static ExecutorService executor = Executors.newFixedThreadPool(10);
+
+CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+		System.out.println("当前线程：" + Thread.currentThread().getId());
+		int i = 10 / 2;
+		System.out.println("运行结果：" + i);
+}, executor);
+
+future.get();
+
+CompletableFuture<Integer> future = CompletableFuture.supplyAsync(() -> {
+		System.out.println("当前线程：" + Thread.currentThread().getId());
+		int i = 10 / 0;
+		System.out.println("运行结果：" + i);
+		return i;
+}, executor).whenComplete((res,excption)->{
+		//虽然能得到异常信息，但是没法修改返回数据。
+		System.out.println("异步任务成功完成了...结果是："+res+";异常是:"+excption);
+}).exceptionally(throwable -> {
+		//可以感知异常，同时返回默认值
+		return 10;
+});
+
+future.get();
+```
+
+### (2) 计算完成时回调方法
+
+当CompletableFuture的计算结果完成，或者抛出异常的时候，可以执行特定的Action。主要是下面的方法：
+
+```java
+//可以处理异常，无返回值
+public CompletableFuture<T> whenComplete(BiConsumer<? super T,? super Throwable> action)
+public CompletableFuture<T> whenCompleteAsync(BiConsumer<? super T,? super Throwable> action)
+public CompletableFuture<T> whenCompleteAsync(BiConsumer<? super T,? super Throwable> action, Executor executor)
+//可以处理异常，有返回值
+public CompletableFuture<T> exceptionally(Function<Throwable,? extends T> fn)
+```
+
+whenComplete 可以处理正常和异常的计算结果，exceptionally 处理异常情况。 
+
+whenComplete 和 whenCompleteAsync 的区别:
+
+whenComplete:是执行当前任务的线程执行继续执行 whenComplete 的任务。
+
+whenCompleteAsync:是执行把 whenCompleteAsync 这个任务继续提交给线程池 来进行执行。
+
+方法不以 **Async** 结尾，意味着 **Action** 使用相同的线程执行，而 **Async** 可能会使用其他线程执行
+
+（如果是使用相同的线程池，也可能会被同一个线程选中执行）
+
+可以看到Action的类型是BiConsumer<? super T,? super Throwable>它可以处理正常的计算结果，或者异常情况。
+
+```java
+/**
+ * 方法完成后的感知
+ */
+CompletableFuture<Integer> future = CompletableFuture.supplyAsync(() -> {
+		System.out.println("当前线程：" + Thread.currentThread().getId());
+		int i = 10 / 0;
+		System.out.println("运行结果：" + i);
+		return i;
+}, executor).whenComplete((res,excption)->{
+		//虽然能得到异常信息，但是没法修改返回数据。
+		System.out.println("异步任务成功完成了...结果是："+res+";异常是:"+excption);
+}).exceptionally(throwable -> {
+		//可以感知异常，同时返回默认值
+		return 10;
+});
+
+future.get();
+```
+
+###  (3) handle 方法
+
+和 complete 一样，可对结果做最后的处理(可处理异常)，可改变返回值。
+
+```java
+public <U> CompletionStage<U> handle(BiFunction<? super T, Throwable, ? extends U> fn);
+public <U> CompletionStage<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn);
+public <U> CompletionStage<U> handleAsync(BiFunction<? super T, Throwable, ? extends U> fn,Executor executor)
+```
+
+```java
+/**
+ * 方法执行完成后的处理
+ */
+CompletableFuture<Integer> future = CompletableFuture.supplyAsync(() -> {
+		System.out.println("当前线程：" + Thread.currentThread().getId());
+		int i = 10 / 4;
+		System.out.println("运行结果：" + i);
+		return i;
+}, executor).handle((res, thr) -> {
+		if (res != null) {
+				return res * 2;
+		}
+		if (thr != null) {
+				return 0;
+		}
+		return 0;
+});
+
+future.get();
+```
+
+### (4) 线程串行化
+
+- thenRun：不能获取上一步的执行结果
+- thenAcceptAsync：能接受上一步结果，但是无返回值
+- thenApplyAsync：能接受上一步结果，有返回值
+
+![](./docs/assets/170.png)
+
+- thenApply 方法:当一个线程依赖另一个线程时，获取上一个任务返回的结果，并返回当前 任务的返回值
+- thenAccept 方法:消费处理结果。接收任务的处理结果，并消费处理，无返回结果
+- thenRun 方法:只要上面的任务执行完成，就开始执行 thenRun，只是处理完任务后，执行 thenRun 的后续操作
+
+带有 Async 默认是异步执行的。同之前。 
+
+以上都要前置任务成功完成。 
+
+Function<? super T,? extends U>
+
+T:上一个任务返回结果的类型
+
+U:当前任务的返回值类型
+
+```java
+        /**
+         * 线程串行化
+         * 1）、thenRun：不能获取到上一步的执行结果，无返回值
+         *  .thenRunAsync(() -> {
+         *             System.out.println("任务2启动了...");
+         *         }, executor);
+         * 2）、thenAcceptAsync;能接受上一步结果，但是无返回值
+         * 3）、thenApplyAsync：;能接受上一步结果，有返回值
+         */
+        CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
+            System.out.println("当前线程：" + Thread.currentThread().getId());
+            int i = 10 / 4;
+            System.out.println("运行结果：" + i);
+            return i;
+        }, executor).thenApplyAsync(res -> {
+            System.out.println("任务2启动了..." + res);
+
+            return "Hello " + res;
+        }, executor);
+				
+				future.get();
+```
+
+### (5) 两任务组合 - 都要完成
+
+![](./docs/assets/171.png)
+
+两个任务必须都完成，触发该任务。
+
+- thenCombine:组合两个 future，获取两个 future 的返回结果，并返回当前任务的返回值
+- thenAcceptBoth:组合两个 future，获取两个 future 任务的返回结果，然后处理任务，没有 返回值
+- runAfterBoth:组合两个 future，不需要获取 future 的结果，只需两个 future 处理完任务后， 处理该任务。
+
+```java
+        /**
+         * 两个都完成
+         */
+        CompletableFuture<Object> future01 = CompletableFuture.supplyAsync(() -> {
+            System.out.println("任务1线程：" + Thread.currentThread().getId());
+            int i = 10 / 4;
+            System.out.println("任务1结束：" );
+            return i;
+        }, executor);
+
+        CompletableFuture<Object> future02 = CompletableFuture.supplyAsync(() -> {
+            System.out.println("任务2线程：" + Thread.currentThread().getId());
+
+            try {
+                Thread.sleep(3000);
+                System.out.println("任务2结束：" );
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            return "Hello";
+        }, executor);
+
+        future01.runAfterBothAsync(future02,()->{
+            System.out.println("任务3开始...");
+        },executor);
+        future01.thenAcceptBothAsync(future02,(f1,f2)->{
+            System.out.println("任务3开始...之前的结果："+f1+"--》"+f2);
+        },executor);
+        CompletableFuture<String> future = future01.thenCombineAsync(future02, (f1, f2) -> {
+            return f1 + "：" + f2 + " -> Haha";
+        }, executor);
+```
+
+### (6) 两任务组合 - 一个完成
+
+![](./docs/assets/172.png)
+
+当两个任务中，任意一个 future 任务完成的时候，执行任务。
+
+applyToEither:两个任务有一个执行完成，获取它的返回值，处理任务并有新的返回值。 
+
+acceptEither:两个任务有一个执行完成，获取它的返回值，处理任务，没有新的返回值。
+
+ runAfterEither:两个任务有一个执行完成，不需要获取 future 的结果，处理任务，也没有返 回值。
+
+```java
+        /**
+         * 两个任务，只要有一个完成，我们就执行任务3
+         * runAfterEitherAsync：不感知结果，自己没有返回值
+         * acceptEitherAsync：感知结果，自己没有返回值
+         * applyToEitherAsync：感知结果，自己有返回值
+         */
+        future01.runAfterEitherAsync(future02,()->{
+            System.out.println("任务3开始...之前的结果：");
+        },executor);
+        future01.acceptEitherAsync(future02,(res)->{
+            System.out.println("任务3开始...之前的结果："+res);
+        },executor);
+        CompletableFuture<String> future = future01.applyToEitherAsync(future02, res -> {
+            System.out.println("任务3开始...之前的结果：" + res);
+            return res.toString() + "->哈哈";
+        }, executor);
+```
+
+### 多任务组合
+
+![](./docs/assets/173.png)
+
+```java
+CompletableFuture<String> futureImg = CompletableFuture.supplyAsync(() -> {
+            System.out.println("查询商品的图片信息");
+            return "hello.jpg";
+        },executor);
+
+        CompletableFuture<String> futureAttr = CompletableFuture.supplyAsync(() -> {
+            System.out.println("查询商品的属性");
+            return "黑色+256G";
+        },executor);
+
+        CompletableFuture<String> futureDesc = CompletableFuture.supplyAsync(() -> {
+            try {
+                Thread.sleep(3000);
+                System.out.println("查询商品介绍");
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            return "华为";
+        },executor);
+
+        CompletableFuture<Void> allOf = CompletableFuture.allOf(futureImg, futureAttr, futureDesc);
+        CompletableFuture<Object> anyOf = CompletableFuture.anyOf(futureImg, futureAttr, futureDesc);
+        anyOf.get();//等待所有结果完成j
+```
+
+# 商品详情
+
+## 新增【接口】商品详情
+
+配置域名解析：item.eshopblvd.com
+
+nginx域名配置，item.eshopblvd.com的请求转给网关
+
+```shell
+cd /mydata/nginx/conf/conf.d
+vi eshopblvd.conf
+```
+
+发现所有二级域名都转发了，nginx不用配置了
+
+配置下网关
+
+```yaml
+        - id: eshopblvd_host_route
+          uri: lb://eshopblvd-product
+          predicates:
+            - Host=eshopblvd.com,item.eshopblvd.com
+```
+
+详情页的静态资源可以放在/mydata/nginx/html/static/item
+
+### 1. 模型抽取
+
+模仿京东商品详情页，如下图所示，包括sku基本信息，图片信息，销售属性，图片介绍和规格参数
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-20_23-51-05.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-20_23-51-05.png)
+
+![](./docs/assets/174.png)
+
+因此建立以下vo
+
+```java
+@ToString
+@Data
+public class SkuItemVo {
+
+    //1、sku基本信息的获取  pms_sku_info
+    private SkuInfoEntity info;
+
+    private boolean hasStock = true;
+
+    //2、sku的图片信息    pms_sku_images
+    private List<SkuImagesEntity> images;
+
+    //3、获取spu的销售属性组合
+    private List<SkuItemSaleAttrVo> saleAttr;
+
+    //4、获取spu的介绍
+    private SpuInfoDescEntity desc;
+
+    //5、获取spu的规格参数信息
+    private List<SpuItemAttrGroupVo> groupAttrs;
+}
+
+@Data
+@ToString
+public class SkuItemSaleAttrVo {
+
+    private Long attrId;
+
+    private String attrName;
+
+    private List<AttrValueWithSkuIdVo> attrValues;
+	//private String attrValue 属性值
+    //private String skuIds 该属性值对应的skuId的集合
+    
+}
+
+@Data
+@ToString
+public class SpuItemAttrGroupVo {
+
+    private String groupName;
+ 
+    //attrId,attrName,attrValue
+    private List<Attr> attrs;
+
+}
+```
+
+### 2. 封装商品属性
+
+#### (1) 总体思路
+
+```
+@GetMapping("/{skuId}.html")
+public String skuItem(@PathVariable("skuId") Long skuId, Model model) {
+    SkuItemVo skuItemVo=skuInfoService.item(skuId);
+    model.addAttribute("item", skuItemVo);
+    return "item";
+}
+
+ 	@Override
+    public SkuItemVo item(Long skuId) {
+        SkuItemVo skuItemVo = new SkuItemVo();
+        //1、sku基本信息的获取  pms_sku_info
+        SkuInfoEntity skuInfoEntity = this.getById(skuId);
+        skuItemVo.setInfo(skuInfoEntity);
+        Long spuId = skuInfoEntity.getSpuId();
+        Long catalogId = skuInfoEntity.getCatalogId();
+
+
+        //2、sku的图片信息    pms_sku_images
+        List<SkuImagesEntity> skuImagesEntities = skuImagesService.list(new QueryWrapper<SkuImagesEntity>().eq("sku_id", skuId));
+        skuItemVo.setImages(skuImagesEntities);
+
+        //3、获取spu的销售属性组合-> 依赖1 获取spuId
+        List<SkuItemSaleAttrVo> saleAttrVos=skuSaleAttrValueService.listSaleAttrs(spuId);
+        skuItemVo.setSaleAttr(saleAttrVos);
+
+        //4、获取spu的介绍-> 依赖1 获取spuId
+        SpuInfoDescEntity byId = spuInfoDescService.getById(spuId);
+        skuItemVo.setDesc(byId);
+
+        //5、获取spu的规格参数信息-> 依赖1 获取spuId catalogId
+        List<SpuItemAttrGroupVo> spuItemAttrGroupVos=productAttrValueService.getProductGroupAttrsBySpuId(spuId, catalogId);
+        skuItemVo.setGroupAttrs(spuItemAttrGroupVos);
+        //TODO 6、秒杀商品的优惠信息
+
+        return skuItemVo;
+    }
+```
+
+#### (2) 获取spu的销售属性
+
+由于我们需要获取该spu下所有sku的销售属性，因此我们需要先从`pms_sku_info`查出该`spuId`对应的`skuId`，
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-21_00-08-20.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-21_00-08-20.png)
+
+再在`pms_sku_sale_attr_value`表中查出上述`skuId`对应的属性
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-21_00-07-08.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-21_00-07-08.png)
+
+因此我们需要使用连表查询，并且通过分组将单个属性值对应的多个`spuId`组成集合，效果如下
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-21_00-11-39.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-21_00-11-39.png)
+
+==为什么要设计成这种模式呢？==
+
+因为这样可以在页面显示切换属性时，快速得到对应skuId的值，比如白色对应的`sku_ids`为30,29，8+128GB对应的`sku_ids`为29,31,27，那么销售属性为`白色、8+128GB`的商品的`skuId`则为二者的交集29
+
+```
+<resultMap id="SkuItemSaleAttrMap" type="io.niceseason.gulimall.product.vo.SkuItemSaleAttrVo">
+        <result property="attrId" column="attr_id"/>
+        <result property="attrName" column="attr_name"/>
+        <collection property="attrValues" ofType="io.niceseason.gulimall.product.vo.AttrValueWithSkuIdVo">
+            <result property="attrValue" column="attr_value"/>
+            <result property="skuIds" column="sku_ids"/>
+        </collection>
+    </resultMap>
+
+    <select id="listSaleAttrs" resultMap="SkuItemSaleAttrMap">
+        SELECT attr_id,attr_name,attr_value,GROUP_CONCAT(info.sku_id) sku_ids FROM pms_sku_info info
+        LEFT JOIN pms_sku_sale_attr_value ssav ON info.sku_id=ssav.sku_id
+        WHERE info.spu_id=#{spuId}
+        GROUP BY ssav.attr_id,ssav.attr_name,ssav.attr_value
+    </select>
+```
+
+#### (3) 获取spu的规格参数信息
+
+由于需要通过`spuId`和`catalogId`查询对应规格参数，所以我们需要通过`pms_attr_group表`获得`catalogId`和`attrGroupName`
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-21_00-24-35.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-21_00-24-35.png)
+
+然后通过` pms_attr_attrgroup_relation`获取分组对应属性id
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-21_00-26-48.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-21_00-26-48.png)
+
+再到` pms_product_attr_value`查询spuId对应的属性
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-21_00-27-51.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-21_00-27-51.png)
+
+最终sql效果,联表含有需要的所有属性
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-21_00-29-01.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-21_00-29-01.png)
+
+```
+@Mapper
+public interface ProductAttrValueDao extends BaseMapper<ProductAttrValueEntity> {
+
+    List<SpuItemAttrGroupVo> getProductGroupAttrsBySpuId(@Param("spuId") Long spuId, @Param("catalogId") Long catalogId);
+}
+<resultMap id="ProductGroupAttrsMap" type="io.niceseason.gulimall.product.vo.SpuItemAttrGroupVo">
+    <result property="groupName" column="attr_group_name"/>
+    <collection property="attrs" ofType="io.niceseason.gulimall.product.vo.Attr">
+        <result property="attrId" column="attr_id"/>
+        <result property="attrName" column="attr_name"/>
+        <result property="attrValue" column="attr_value"/>
+    </collection>
+</resultMap>
+
+<select id="getProductGroupAttrsBySpuId" resultMap="ProductGroupAttrsMap">
+    SELECT ag.attr_group_name,attr.attr_id,attr.attr_name,attr.attr_value
+    FROM pms_attr_attrgroup_relation aar 
+    LEFT JOIN pms_attr_group ag ON aar.attr_group_id=ag.attr_group_id
+    LEFT JOIN pms_product_attr_value attr ON aar.attr_id=attr.attr_id
+    WHERE attr.spu_id = #{spuId} AND ag.catelog_id = #{catalogId}
+</select>
+```
+
+### 3. 使用异步编排
+
+为了使我们的任务进行的更快，我们可以让查询的各个子任务多线程执行，但是由于各个任务之间可能有相互依赖的关系，因此就涉及到了异步编排。
+
+在这次查询中spu的销售属性、介绍、规格参数信息都需要`spuId`,因此依赖sku基本信息的获取,所以我们要让这些任务在1之后运行。因为我们需要1运行的结果，因此调用`thenAcceptAsync()`可以接受上一步的结果且没有返回值。
+
+最后时，我们需要调用`get()`方法使得所有方法都已经执行完成
+
+```
+public SkuItemVo item(Long skuId) {
+    SkuItemVo skuItemVo = new SkuItemVo();
+    CompletableFuture<SkuInfoEntity> infoFuture = CompletableFuture.supplyAsync(() -> {
+        //1、sku基本信息的获取  pms_sku_info
+        SkuInfoEntity skuInfoEntity = this.getById(skuId);
+        skuItemVo.setInfo(skuInfoEntity);
+        return skuInfoEntity;
+    }, executor);
+
+    //2、sku的图片信息    pms_sku_images
+    CompletableFuture<Void> imageFuture = CompletableFuture.runAsync(() -> {
+        List<SkuImagesEntity> skuImagesEntities = skuImagesService.list(new QueryWrapper<SkuImagesEntity>().eq("sku_id", skuId));
+        skuItemVo.setImages(skuImagesEntities);
+    }, executor);
+
+
+    //3、获取spu的销售属性组合-> 依赖1 获取spuId
+    CompletableFuture<Void> saleFuture = infoFuture.thenAcceptAsync((info) -> {
+        List<SkuItemSaleAttrVo> saleAttrVos = skuSaleAttrValueService.listSaleAttrs(info.getSpuId());
+        skuItemVo.setSaleAttr(saleAttrVos);
+    }, executor);
+
+
+    //4、获取spu的介绍-> 依赖1 获取spuId
+    CompletableFuture<Void> descFuture = infoFuture.thenAcceptAsync((info) -> {
+        SpuInfoDescEntity byId = spuInfoDescService.getById(info.getSpuId());
+        skuItemVo.setDesc(byId);
+    }, executor);
+
+
+    //5、获取spu的规格参数信息-> 依赖1 获取spuId catalogId
+    CompletableFuture<Void> attrFuture = infoFuture.thenAcceptAsync((info) -> {
+        List<SpuItemAttrGroupVo> spuItemAttrGroupVos=productAttrValueService.getProductGroupAttrsBySpuId(info.getSpuId(), info.getCatalogId());
+        skuItemVo.setGroupAttrs(spuItemAttrGroupVos);
+    }, executor);
+
+    //TODO 6、秒杀商品的优惠信息
+
+    //等待所有任务执行完成
+    try {
+        CompletableFuture.allOf(imageFuture, saleFuture, descFuture, attrFuture).get();
+    } catch (InterruptedException e) {
+        e.printStackTrace();
+    } catch (ExecutionException e) {
+        e.printStackTrace();
+    }
+
+    return skuItemVo;
+}
+```
+
+### 4. 页面的sku切换
+
+通过控制class中是否包换`checked`属性来控制显示样式，因此要根据`skuId`判断
+
+```
+<dd th:each="val : ${attr.attrValues}">
+    <!--当前属性值的skuIds集合中是否含有当前商品的skuId,如果有说明是选中状态，加上checked-->
+   <a th:attr=" class=${#lists.contains(#strings.listSplit(val.skuIds,','),item.info.skuId.toString())
+                            ? 'sku_attr_value checked': 'sku_attr_value'}, skus=${val.skuIds} "
+   >
+      [[${val.attrValue}]]
+   </a>
+</dd>
+$(".sku_attr_value").click(function () {
+    //1、改变样式
+    let curr = $(this).attr("skus").split(",");
+    //1.1 给点击元素的兄弟节点去除checked
+    $(this).parent().parent().find(".sku_attr_value").removeClass("checked");
+    //1.2 给点击元素加上checked
+    $(this).addClass("checked");
+    //1.3 为sku_attr_value设置未选中样式，为sku_attr_value checked设置选中的样式
+    changeCheckedStyle();
+
+    //2. 切换spuId
+    let skus = new Array();
+    //2.1 将每个skuIds变成数组放入skus这个数组集合中
+    $("a[class='sku_attr_value checked']").each(function () {
+        skus.push($(this).attr("skus").split(","));
+    });
+
+    let filterEle = skus[0];
+    for (let i = 1; i < skus.length; i++) {
+        //2.2 遍历每个属性的skuIds获取交集
+        //比如sku[0]={1,3,5},sku[1]={4,5,6} 那么 $(sku[0]).filter(sku[1])=5
+        filterEle = $(filterEle).filter(skus[i])[0];
+    }
+
+    //2.3 url 拼串
+    location.href = "http://item.gulimall.com/" + filterEle + ".html";
+
+    return false;
+});
+
+
+function changeCheckedStyle() {
+    $(".sku_attr_value").parent().css({"border": "solid 1px #ccc"});
+    $("a[class='sku_attr_value checked']").parent().css({"border": "solid 1px red"});
+};
+```
