@@ -38,15 +38,22 @@ spring:
           filters:
             - RewritePath=/api/(?<segment>.*),/$\{segment}
 
-        - id: eshopblvd_host_route
-          uri: lb://eshopblvd-product
+        - id: search_route
+          uri: lb://eshopblvd-search
           predicates:
-            - Host=eshopblvd.com,item.eshopblvd.com
+            - Path=/api/search/**
+          filters:
+            - RewritePath=/api/(?<segment>.*),/$\{segment}
 
-        - id: eshopblvd_search_route
-            uri: lb://eshopblvd-search
-            predicates:
-              - Host=search.eshopblvd.com
+#        - id: eshopblvd_host_route
+#          uri: lb://eshopblvd-product
+#          predicates:
+#            - Host=eshopblvd.com,item.eshopblvd.com
+#
+#        - id: eshopblvd_search_route
+#          uri: lb://eshopblvd-search
+#          predicates:
+#            - Host=search.eshopblvd.com
 
   application:
     name: eshopblvd-gateway
