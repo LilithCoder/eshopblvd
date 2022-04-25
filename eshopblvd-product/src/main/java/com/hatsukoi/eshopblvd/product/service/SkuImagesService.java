@@ -10,4 +10,6 @@ import java.util.List;
  */
 public interface SkuImagesService {
     void batchInsert(List<SkuImages> skuImages);
+
+    List<SkuImages> getSkuImgsBySkuId(Long skuId);
 }

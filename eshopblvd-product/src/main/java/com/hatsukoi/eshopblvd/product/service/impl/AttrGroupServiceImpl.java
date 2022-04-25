@@ -1,16 +1,17 @@
 package com.hatsukoi.eshopblvd.product.service.impl;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONStreamAware;
+import com.alibaba.fastjson.TypeReference;
 import com.github.pagehelper.PageHelper;
 import com.hatsukoi.eshopblvd.product.dao.AttrAttrgroupRelationMapper;
 import com.hatsukoi.eshopblvd.product.dao.AttrGroupMapper;
-import com.hatsukoi.eshopblvd.product.entity.Attr;
-import com.hatsukoi.eshopblvd.product.entity.AttrAttrgroupRelation;
-import com.hatsukoi.eshopblvd.product.entity.AttrGroup;
-import com.hatsukoi.eshopblvd.product.entity.AttrGroupExample;
+import com.hatsukoi.eshopblvd.product.entity.*;
 import com.hatsukoi.eshopblvd.product.service.AttrGroupService;
 import com.hatsukoi.eshopblvd.product.service.AttrService;
 import com.hatsukoi.eshopblvd.product.vo.AttrAttrGroupRelationVO;
 import com.hatsukoi.eshopblvd.product.vo.AttrGroupWithAttrsVO;
+import com.hatsukoi.eshopblvd.product.vo.SkuItemVO;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.BeanUtils;
@@ -124,5 +125,20 @@ public class AttrGroupServiceImpl implements AttrGroupService {
             return attrGroupWithAttrsVO;
         }).collect(Collectors.toList());
         return collect;
+    }
+
+    /**
+     *
+     * @param spuId
+     * @param catalogId
+     * @return
+     */
+    @Override
+    public List<SkuItemVO.SpuItemAttrGroupVO> getAttrGroupWithAttrsBySpuId(Long spuId, Long catalogId) {
+        // PO->VO类型强转
+        List<SpuItemAttrGroupPO> groupAttrs = attrGroupMapper.getAttrGroupWithAttrsBySpuId(spuId, catalogId);
+        List<SkuItemVO.SpuItemAttrGroupVO> spuItemAttrGroupVOs = JSON.parseObject(JSON.toJSONString(groupAttrs), new TypeReference<List<SkuItemVO.SpuItemAttrGroupVO>>() {
+        });
+        return spuItemAttrGroupVOs;
     }
 }

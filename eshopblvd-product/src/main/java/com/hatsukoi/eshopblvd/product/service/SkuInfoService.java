@@ -1,6 +1,7 @@
 package com.hatsukoi.eshopblvd.product.service;
 
 import com.hatsukoi.eshopblvd.product.entity.SkuInfo;
+import com.hatsukoi.eshopblvd.product.vo.SkuItemVO;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 
 import java.util.List;
@@ -16,4 +17,6 @@ public interface SkuInfoService {
     CommonPageInfo<SkuInfo> querySkuPageByFilters(Map<String, Object> params);
 
     List<SkuInfo> getSkusBySpuId(Long spuId);
+
+    SkuItemVO getSkuDetail(Long skuId);
 }

@@ -3,6 +3,9 @@ package com.hatsukoi.eshopblvd.product.dao;
 import com.hatsukoi.eshopblvd.product.entity.SkuSaleAttrValue;
 import com.hatsukoi.eshopblvd.product.entity.SkuSaleAttrValueExample;
 import java.util.List;
+
+import com.hatsukoi.eshopblvd.product.entity.SpuSaleAttrPO;
+import com.hatsukoi.eshopblvd.product.vo.SkuItemVO;
 import org.apache.ibatis.annotations.Param;
 
 public interface SkuSaleAttrValueMapper {
@@ -95,4 +98,6 @@ public interface SkuSaleAttrValueMapper {
     int updateByPrimaryKey(SkuSaleAttrValue record);
 
     void batchInsert(@Param("attrValues") List<SkuSaleAttrValue> skuSaleAttrValues);
+
+    List<SpuSaleAttrPO> getSaleAttrsBySpuId(@Param("spuId") Long spuId);
 }

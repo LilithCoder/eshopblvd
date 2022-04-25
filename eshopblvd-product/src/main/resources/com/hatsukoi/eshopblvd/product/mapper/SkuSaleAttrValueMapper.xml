@@ -210,6 +210,31 @@
       <include refid="Example_Where_Clause" />
     </if>
   </select>
+  <resultMap id="SpuSaleAttrPO" type="com.hatsukoi.eshopblvd.product.entity.SpuSaleAttrPO">
+    <result column="attr_id" property="attrId"></result>
+    <result column="attr_name" property="attrName"></result>
+    <collection property="attrValues" ofType="com.hatsukoi.eshopblvd.product.entity.AttrValueWithSkuIdsPO">
+      <result column="attr_value" property="attrValue"></result>
+      <result column="sku_ids" property="skuIds"></result>
+    </collection>
+  </resultMap>
+  <select id="getSaleAttrsBySpuId" resultMap="SpuSaleAttrPO">
+    SELECT
+      pssav.`attr_id` attr_id,
+      pssav.`attr_name` attr_name,
+      pssav.`attr_value` attr_value,
+      GROUP_CONCAT(DISTINCT psi.`sku_id`) sku_ids
+    FROM
+      `pms_sku_info` psi LEFT JOIN
+      `pms_sku_sale_attr_value` pssav ON
+      psi.`sku_id`=pssav.`sku_id`
+    WHERE
+      psi.`spu_id`=#{spuId}
+    GROUP BY
+      pssav.`attr_id`,
+      pssav.`attr_name`,
+      pssav.`attr_value`
+  </select>
   <update id="updateByExampleSelective" parameterType="map">
     <!--
       WARNING - @mbg.generated

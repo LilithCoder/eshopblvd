@@ -1,6 +1,8 @@
 package com.hatsukoi.eshopblvd.product.service;
 
 import com.hatsukoi.eshopblvd.product.entity.SkuSaleAttrValue;
+import com.hatsukoi.eshopblvd.product.entity.SpuSaleAttrPO;
+import com.hatsukoi.eshopblvd.product.vo.SkuItemVO;
 
 import java.util.List;
 
@@ -10,4 +12,6 @@ import java.util.List;
  */
 public interface SkuSaleAttrValueService {
     void batchInsert(List<SkuSaleAttrValue> skuSaleAttrValues);
+
+    List<SpuSaleAttrPO> getSaleAttrsBySpuId(Long spuId);
 }

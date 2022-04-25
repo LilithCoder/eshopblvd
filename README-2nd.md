@@ -3281,58 +3281,105 @@ vi eshopblvd.conf
 
 模仿京东商品详情页，如下图所示，包括sku基本信息，图片信息，销售属性，图片介绍和规格参数
 
-[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-20_23-51-05.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-20_23-51-05.png)
+![](./docs/assets/175.png)
 
 ![](./docs/assets/174.png)
 
 因此建立以下vo
 
 ```java
-@ToString
+/**
+ * 详情页sku的返回结果数据模型
+ * @author gaoweilin
+ * @date 2022/04/25 Mon 12:56 AM
+ */
 @Data
-public class SkuItemVo {
+public class SkuItemVO {
+    /**
+     * sku的基本信息
+     */
+    SkuInfo skuInfo;
+    /**
+     * sku的图片信息「pms_sku_images」
+     */
+    List<SkuImages> images;
+    /**
+     * sku对应spu的所有销售属性
+     */
+    List<SpuSaleAttrVO> saleAttrs;
+    /**
+     * sku对应spu的商品描述（图片）
+     */
+    SpuInfoDesc spuInfoDesc;
+    /**
+     * sku对应spu的规格参数信息
+     */
+    List<SpuItemAttrGroupVO> groupAttrs;
 
-    //1、sku基本信息的获取  pms_sku_info
-    private SkuInfoEntity info;
+    @Data
+    public static class SpuSaleAttrVO {
+        /**
+         * 属性id
+         */
+        private Long attrId;
+        /**
+         * 属性名
+         */
+        private String attrName;
+        /**
+         * 对应的属性值们，且每个属性值还有对应的sku列表
+         */
+        private List<AttrValueWithSkuIdsVO> attrValues;
+    }
 
-    private boolean hasStock = true;
+    /**
+     * sku的销售属性值with对应的sku们
+     */
+    @Data
+    public static class AttrValueWithSkuIdsVO {
+        /**
+         * 属性值
+         */
+        private String attrValue;
+        /**
+         * 该属性值对应的哪些skuId
+         */
+        private List<Long> skuIds;
+    }
 
-    //2、sku的图片信息    pms_sku_images
-    private List<SkuImagesEntity> images;
+    /**
+     * sku对应spu的属性分组，还包含了每个分组下规格参数
+     */
+    @Data
+    public static class SpuItemAttrGroupVO {
+        /**
+         * 属性分组名
+         */
+        private String groupName;
+        /**
+         * 属性分组对应的规格参数
+         */
+        private List<BaseAttrVO> attrs;
+    }
 
-    //3、获取spu的销售属性组合
-    private List<SkuItemSaleAttrVo> saleAttr;
-
-    //4、获取spu的介绍
-    private SpuInfoDescEntity desc;
-
-    //5、获取spu的规格参数信息
-    private List<SpuItemAttrGroupVo> groupAttrs;
-}
-
-@Data
-@ToString
-public class SkuItemSaleAttrVo {
-
-    private Long attrId;
-
-    private String attrName;
-
-    private List<AttrValueWithSkuIdVo> attrValues;
-	//private String attrValue 属性值
-    //private String skuIds 该属性值对应的skuId的集合
-    
-}
-
-@Data
-@ToString
-public class SpuItemAttrGroupVo {
-
-    private String groupName;
- 
-    //attrId,attrName,attrValue
-    private List<Attr> attrs;
-
+    /**
+     * sku要展示的规格参数
+     */
+    @Data
+    public static class BaseAttrVO {
+        /**
+         * 属性id
+         */
+        private Long attrId;
+        /**
+         * 属性名
+         */
+        private String attrName;
+        /**
+         * 属性值
+         */
+        private String attrValue;
+    }
 }
 ```
 
@@ -3383,55 +3430,75 @@ public String skuItem(@PathVariable("skuId") Long skuId, Model model) {
 
 由于我们需要获取该spu下所有sku的销售属性，因此我们需要先从`pms_sku_info`查出该`spuId`对应的`skuId`，
 
-[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-21_00-08-20.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-21_00-08-20.png)
+![](./docs/assets/176.png)
 
 再在`pms_sku_sale_attr_value`表中查出上述`skuId`对应的属性
 
-[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-21_00-07-08.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-21_00-07-08.png)
+![](./docs/assets/177.png)
 
 因此我们需要使用连表查询，并且通过分组将单个属性值对应的多个`spuId`组成集合，效果如下
 
-[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-21_00-11-39.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-21_00-11-39.png)
+![](./docs/assets/178.png)
 
 ==为什么要设计成这种模式呢？==
 
 因为这样可以在页面显示切换属性时，快速得到对应skuId的值，比如白色对应的`sku_ids`为30,29，8+128GB对应的`sku_ids`为29,31,27，那么销售属性为`白色、8+128GB`的商品的`skuId`则为二者的交集29
 
+```xml
+  <resultMap id="SpuSaleAttrPO" type="com.hatsukoi.eshopblvd.product.entity.SpuSaleAttrPO">
+    <result column="attr_id" property="attrId"></result>
+    <result column="attr_name" property="attrName"></result>
+    <collection property="attrValues" ofType="com.hatsukoi.eshopblvd.product.entity.AttrValueWithSkuIdsPO">
+      <result column="attr_value" property="attrValue"></result>
+      <result column="sku_ids" property="skuIds"></result>
+    </collection>
+  </resultMap>
+  <select id="getSaleAttrsBySpuId" resultMap="SpuSaleAttrPO">
+    SELECT
+      pssav.`attr_id` attr_id,
+      pssav.`attr_name` attr_name,
+      pssav.`attr_value` attr_value,
+      GROUP_CONCAT(DISTINCT psi.`sku_id`) sku_ids
+    FROM
+      `pms_sku_info` psi LEFT JOIN
+      `pms_sku_sale_attr_value` pssav ON
+      psi.`sku_id`=pssav.`sku_id`
+    WHERE
+      psi.`spu_id`=#{spuId}
+    GROUP BY
+      pssav.`attr_id`,
+      pssav.`attr_name`,
+      pssav.`attr_value`
+  </select>
 ```
-<resultMap id="SkuItemSaleAttrMap" type="io.niceseason.gulimall.product.vo.SkuItemSaleAttrVo">
-        <result property="attrId" column="attr_id"/>
-        <result property="attrName" column="attr_name"/>
-        <collection property="attrValues" ofType="io.niceseason.gulimall.product.vo.AttrValueWithSkuIdVo">
-            <result property="attrValue" column="attr_value"/>
-            <result property="skuIds" column="sku_ids"/>
-        </collection>
-    </resultMap>
 
-    <select id="listSaleAttrs" resultMap="SkuItemSaleAttrMap">
-        SELECT attr_id,attr_name,attr_value,GROUP_CONCAT(info.sku_id) sku_ids FROM pms_sku_info info
-        LEFT JOIN pms_sku_sale_attr_value ssav ON info.sku_id=ssav.sku_id
-        WHERE info.spu_id=#{spuId}
-        GROUP BY ssav.attr_id,ssav.attr_name,ssav.attr_value
-    </select>
-```
+![](./docs/assets/183.png)
+
+[MySQL 的 GROUP_CONCAT 函数详解](https://www.jianshu.com/p/447eb01eebb2)
+
+[MySQL GROUP BY 语句](https://www.runoob.com/mysql/mysql-group-by-statement.html)
+
+[MySQL 连接的使用](https://www.runoob.com/mysql/mysql-join.html)
 
 #### (3) 获取spu的规格参数信息
 
+属性分组和分类是对应的
+
 由于需要通过`spuId`和`catalogId`查询对应规格参数，所以我们需要通过`pms_attr_group表`获得`catalogId`和`attrGroupName`
 
-[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-21_00-24-35.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-21_00-24-35.png)
+![](./docs/assets/179.png)
 
 然后通过` pms_attr_attrgroup_relation`获取分组对应属性id
 
-[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-21_00-26-48.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-21_00-26-48.png)
+![](./docs/assets/180.png)
 
 再到` pms_product_attr_value`查询spuId对应的属性
 
-[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-21_00-27-51.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-21_00-27-51.png)
+![](./docs/assets/181.png)
 
 最终sql效果,联表含有需要的所有属性
 
-[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-21_00-29-01.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-21_00-29-01.png)
+![](./docs/assets/182.png)
 
 ```
 @Mapper
@@ -3457,6 +3524,36 @@ public interface ProductAttrValueDao extends BaseMapper<ProductAttrValueEntity> 
 </select>
 ```
 
+![](./docs/assets/184.png)
+
+```xml
+<resultMap id="spuItemAttrGroupPO" type="com.hatsukoi.eshopblvd.product.entity.SpuItemAttrGroupPO">
+      <!--        spu_id  attr_group_name  attr_group_id  attr_id  attr_name             attr_value  -->
+      <result property="groupName" column="group_name"></result>
+      <collection property="attrs" ofType="com.hatsukoi.eshopblvd.product.entity.BaseAttrPO">
+        <result column="attr_id" property="attrId"></result>
+        <result column="attr_name" property="attrName"></result>
+        <result column="attr_value" property="attrValue"></result>
+      </collection>
+    </resultMap>
+    <select id="getAttrGroupWithAttrsBySpuId"
+            resultMap="spuItemAttrGroupPO">
+      SELECT
+        pag.`attr_group_name` group_name,
+        paar.`attr_id` attr_id,
+        ppaa.`attr_name` attr_name,
+        ppaa.`attr_value` attr_value
+      FROM
+        `pms_attr_group` pag
+          LEFT JOIN `pms_attr_attrgroup_relation` paar ON pag.`attr_group_id` = paar.`attr_group_id`
+          LEFT JOIN `pms_product_attr_value` ppaa ON ppaa.`attr_id` = paar.`attr_id`
+      WHERE
+        pag.`catelog_id`=#{catalogId} and ppaa.`spu_id`=#{spuId}
+    </select>
+```
+
+
+
 ### 3. 使用异步编排
 
 为了使我们的任务进行的更快，我们可以让查询的各个子任务多线程执行，但是由于各个任务之间可能有相互依赖的关系，因此就涉及到了异步编排。
@@ -3465,7 +3562,48 @@ public interface ProductAttrValueDao extends BaseMapper<ProductAttrValueEntity> 
 
 最后时，我们需要调用`get()`方法使得所有方法都已经执行完成
 
+#### 加入线程池
+
+参数通过配置文件来动态配置，在容器中注入线程池供使用
+
+```java
+@Configuration
+public class MyThreadConfig {
+
+    @Bean
+    public ThreadPoolExecutor threadPoolExecutor(ThreadPoolConfigProperties pool){
+       return new ThreadPoolExecutor(pool.getCoreSize(),
+                pool.getMaxSize(),pool.getKeepAliveTime(),
+                TimeUnit.SECONDS,new LinkedBlockingDeque<>(100000),
+                Executors.defaultThreadFactory(),
+                new ThreadPoolExecutor.AbortPolicy());
+
+    }
+}
+
+@ConfigurationProperties(prefix = "gulimall.thread")
+@Component
+@Data
+public class ThreadPoolConfigProperties {
+    private Integer coreSize;
+    private Integer maxSize;
+    private Integer keepAliveTime;
+}
+
+
 ```
+
+```yaml
+eshopblvd:
+  thread-pool:
+    core-size: 20
+    max-size: 200
+    keep-alive-time: 10
+```
+
+
+
+```java
 public SkuItemVo item(Long skuId) {
     SkuItemVo skuItemVo = new SkuItemVo();
     CompletableFuture<SkuInfoEntity> infoFuture = CompletableFuture.supplyAsync(() -> {
@@ -3521,7 +3659,7 @@ public SkuItemVo item(Long skuId) {
 
 通过控制class中是否包换`checked`属性来控制显示样式，因此要根据`skuId`判断
 
-```
+```java
 <dd th:each="val : ${attr.attrValues}">
     <!--当前属性值的skuIds集合中是否含有当前商品的skuId,如果有说明是选中状态，加上checked-->
    <a th:attr=" class=${#lists.contains(#strings.listSplit(val.skuIds,','),item.info.skuId.toString())
