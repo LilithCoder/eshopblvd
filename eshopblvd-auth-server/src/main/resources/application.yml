@@ -1,0 +1,26 @@
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 47.103.8.41:8848
+  application:
+    name: eshopblvd-auth-server
+  redis:
+    host: 47.103.8.41
+    port: 6379
+
+server:
+  port: 20000
+
+dubbo:
+  application:
+    name: eshopblvd-auth-server-dubbo
+  registry:
+    address: nacos://47.103.8.41:8848
+  monitor:
+    protocol: registry
+  protocol:
+    port: 20885
+  consumer:
+    timeout: 60000
+    retries: 3

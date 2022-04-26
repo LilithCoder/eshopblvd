@@ -14,8 +14,29 @@ spring:
       oss:
         endpoint: oss-cn-shanghai.aliyuncs.com
         bucket: eshopblvd
+      sms:
+        host: https://dfsns.market.alicloudapi.com
+        path: /data/send_sms
+        method: POST
+        appcode: f0e99bc9e94647df88020e8620363174
+        templateId: TPL_0000
+
+
   application:
     name: eshopblvd-thirdparty
 
 server:
   port: 30000
+
+dubbo:
+  application:
+    name: eshopblvd-thirdparty-dubbo
+  registry:
+    address: nacos://47.103.8.41:8848
+  monitor:
+    protocol: registry
+  protocol:
+    port: 20883
+  consumer:
+    timeout: 60000
+    retries: 3

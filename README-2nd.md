@@ -3704,3 +3704,211 @@ function changeCheckedStyle() {
     $("a[class='sku_attr_value checked']").parent().css({"border": "solid 1px red"});
 };
 ```
+
+# 认证服务
+
+## 环境搭建
+
+新建认证中心的微服务
+
+创建`gulimall-auth-server`模块，导依赖，引入`login.html`和`reg.html`，并把静态资源放到nginx的static目录下
+
+`/mydata/nginx/html/static/login`
+
+`/mydata/nginx/html/static/reg`
+
+配置网关路由规则
+
+```yaml
+        - id: auth_route
+          uri: lb://eshopblvd-auth-server
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - RewritePath=/api/(?<segment>.*),/$\{segment}
+```
+
+
+
+## 新增域名
+
+auth.eshopblvd.com
+
+## 注册功能
+
+### 短信验证
+
+![](./docs/assets/185.png)
+
+```javascript
+//点击发送验证码按钮触发下面函数
+$("#sendCode").click(function () {
+		//如果有disabled，说明最近已经点过，则什么都不做
+		if($(this).hasClass("disabled")){
+
+		}else {
+            //调用函数使得当前的文本进行倒计时功能
+			timeOutChangeStyle();
+			//发送验证码
+			var phone=$("#phoneNum").val();
+			$.get("/sms/sendCode?phone="+phone,function (data){
+				if (data.code!=0){
+					alert(data.msg);
+				}
+			})
+		}
+	})
+
+	let time = 60;
+	function timeOutChangeStyle() {
+		//开启倒计时后设置标志属性disable，使得该按钮不能再次被点击
+		$("#sendCode").attr("class", "disabled");
+        //当时间为0时，说明倒计时完成，则重置
+		if(time==0){
+			$("#sendCode").text("点击发送验证码");
+			time=60;
+			$("#sendCode").attr("class", "");
+		}else {
+            //每秒调用一次当前函数，使得time--
+			$("#sendCode").text(time+"s后再次发送");
+			time--;
+			setTimeout("timeOutChangeStyle()", 1000);
+		}
+	}
+```
+
+### 新增【接口】发送短信验证码
+
+在阿里云网页购买试用的短信服务
+
+在`gulimall-third-party`中编写发送短信组件,其中`host`、`path`、`appcode`可以在配置文件中使用前缀`spring.cloud.alicloud.sms`进行配置
+
+```
+@Data
+@ConfigurationProperties(prefix = "spring.cloud.alicloud.sms")
+@Controller
+public class SmsComponent {
+
+    private String host;
+    private String path;
+    private String appcode;
+
+    public void sendCode(String phone,String code) {
+//        String host = "http://dingxin.market.alicloudapi.com";
+//        String path = "/dx/sendSms";
+        String method = "POST";
+//        String appcode = "你自己的AppCode";
+        Map<String, String> headers = new HashMap<String, String>();
+        //最后在header中的格式(中间是英文空格)为Authorization:APPCODE 83359fd73fe94948385f570e3c139105
+        headers.put("Authorization", "APPCODE " + appcode);
+        Map<String, String> querys = new HashMap<String, String>();
+        querys.put("mobile",phone);
+        querys.put("param", "code:"+code);
+        querys.put("tpl_id", "TP1711063");
+        Map<String, String> bodys = new HashMap<String, String>();
+
+
+        try {
+            /**
+             * 重要提示如下:
+             * HttpUtils请从
+             * https://github.com/aliyun/api-gateway-demo-sign-java/blob/master/src/main/java/com/aliyun/api/gateway/demo/util/HttpUtils.java
+             * 下载
+             *
+             * 相应的依赖请参照
+             * https://github.com/aliyun/api-gateway-demo-sign-java/blob/master/pom.xml
+             */
+            HttpResponse response = HttpUtils.doPost(host, path, method, headers, querys, bodys);
+            System.out.println(response.toString());
+            //获取response的body
+            //System.out.println(EntityUtils.toString(response.getEntity()));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+编写controller，给别的服务提供远程调用发送验证码的接口（认证服务会调用三方服务暴露的接口来发送验证码）
+
+```
+@Controller
+@RequestMapping(value = "/sms")
+public class SmsSendController {
+
+    @Resource
+    private SmsComponent smsComponent;
+
+    /**
+     * 提供给别的服务进行调用
+     * @param phone 电话号码
+     * @param code 验证码
+     * @return
+     */
+    @ResponseBody
+    @GetMapping(value = "/sendCode")
+    public R sendCode(@RequestParam("phone") String phone, @RequestParam("code") String code) {
+
+        //发送验证码
+        smsComponent.sendCode(phone,code);
+        System.out.println(phone+code);
+        return R.ok();
+    }
+}
+```
+
+#### 接口防刷
+
+由于发送验证码的接口暴露，为了防止恶意攻击(浏览器一刷新，倒计时没了)，我们不能随意让接口被调用。
+
+- 在redis中以`phone-code`将电话号码和验证码进行存储并将当前时间与code一起存储
+  - 如果调用时以当前`phone`取出的v不为空且当前时间在存储时间的60s以内，说明60s内该号码已经调用过，返回错误信息
+  - 60s以后再次调用，需要删除之前存储的`phone-code`
+  - code存在一个过期时间，我们设置为10min，10min内验证该验证码有效
+
+![](./docs/assets/185.svg)
+
+```java
+@RestController
+@RequestMapping("auth")
+public class AuthController {
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
+    @Reference(check = false, interfaceName = "com.hatsukoi.eshopblvd.api.thirdparty.SmsSendRpcService")
+    private SmsSendRpcService smsSendRpcService;
+
+    /**
+     * 发送短信验证码接口
+     * @param phone
+     * @return
+     */
+    @GetMapping("/sms/sendcode")
+    public CommonResponse sendSmsCode(@RequestParam("phone") String phone) {
+        String key = AuthServerConstant.SMS_CODE_CACHE_PREFIX + phone;
+
+        // 1. 接口防刷
+        String redisCode = stringRedisTemplate.opsForValue().get(key);
+        if (!StringUtils.isEmpty(redisCode)) {
+            // 获取这条已经发送该手机号上且存入redis的记录
+            // 获取这条记录存入redis的时间，如果大于60s，这个手机号就可以再获取一次验证码
+            long timestamp = Long.parseLong(redisCode.split("_")[1]);
+            if (System.currentTimeMillis() - timestamp < AuthServerConstant.RECURRENT_TIME) {
+                // 60s内不能再发验证码，返沪响应的错误码和错误信息
+                return CommonResponse.error(BizCodeEnum.SMS_CODE_EXCEPTION.getCode(), BizCodeEnum.SMS_CODE_EXCEPTION.getMsg());
+            }
+        }
+
+        // 2. 该手机号首次发送验证码或者是过了60s可以再次发验证码了
+        String code = UUID.randomUUID().toString().substring(0, 5);
+        // 值是验证码加上当前系统时间，这是为了之后防止的再次获取验证码时距离上次没有超过60s
+        String codeValue = code + "_" + System.currentTimeMillis();
+        // redis缓存验证码，加上有效时间10min，用户10min内要来注册成功，否则就失效了
+        stringRedisTemplate.opsForValue().set(key, codeValue);
+
+        // 3. RPC调用三方服务去给手机号发送验证码
+        smsSendRpcService.sendCode(phone, code);
+        return CommonResponse.success();
+    }
+}
+```
