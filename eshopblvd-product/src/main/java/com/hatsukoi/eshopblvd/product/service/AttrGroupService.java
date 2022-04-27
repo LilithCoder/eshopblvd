@@ -3,6 +3,7 @@ package com.hatsukoi.eshopblvd.product.service;
 import com.hatsukoi.eshopblvd.product.entity.AttrGroup;
 import com.hatsukoi.eshopblvd.product.vo.AttrAttrGroupRelationVO;
 import com.hatsukoi.eshopblvd.product.vo.AttrGroupWithAttrsVO;
+import com.hatsukoi.eshopblvd.product.vo.SkuItemVO;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 
 import java.util.List;
@@ -26,4 +27,6 @@ public interface AttrGroupService {
     void deleteRelations(AttrAttrGroupRelationVO[] relationVOs);
 
     List<AttrGroupWithAttrsVO> getAttrGroupWithAttrsByCatelogId(Long catelogId);
+
+    List<SkuItemVO.SpuItemAttrGroupVO> getAttrGroupWithAttrsBySpuId(Long spuId, Long catalogId);
 }

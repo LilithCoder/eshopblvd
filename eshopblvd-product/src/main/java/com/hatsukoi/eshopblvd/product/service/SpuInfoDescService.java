@@ -9,4 +9,6 @@ import org.springframework.stereotype.Service;
  */
 public interface SpuInfoDescService {
     void insertSpuInfoDesc(SpuInfoDesc spuInfoDesc);
+
+    SpuInfoDesc getSpuInfoDescById(Long spuId);
 }

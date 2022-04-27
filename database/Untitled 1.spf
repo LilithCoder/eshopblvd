@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>ContentFilters</key>
+	<dict/>
+	<key>auto_connect</key>
+	<true/>
+	<key>data</key>
+	<dict>
+		<key>connection</key>
+		<dict>
+			<key>database</key>
+			<string>eshopblvd_pms</string>
+			<key>host</key>
+			<string>47.103.8.41</string>
+			<key>kcid</key>
+			<string>3825461844990078588</string>
+			<key>name</key>
+			<string>eshopblvd</string>
+			<key>rdbms_type</key>
+			<string>mysql</string>
+			<key>sslCACertFileLocation</key>
+			<string></string>
+			<key>sslCACertFileLocationEnabled</key>
+			<integer>0</integer>
+			<key>sslCertificateFileLocation</key>
+			<string></string>
+			<key>sslCertificateFileLocationEnabled</key>
+			<integer>0</integer>
+			<key>sslKeyFileLocation</key>
+			<string></string>
+			<key>sslKeyFileLocationEnabled</key>
+			<integer>0</integer>
+			<key>type</key>
+			<string>SPTCPIPConnection</string>
+			<key>useSSL</key>
+			<integer>0</integer>
+			<key>user</key>
+			<string>root</string>
+		</dict>
+		<key>session</key>
+		<dict>
+			<key>connectionEncoding</key>
+			<string>utf8mb4</string>
+			<key>contentFilterV2</key>
+			<dict>
+				<key>children</key>
+				<array/>
+				<key>filterClass</key>
+				<string>groupNode</string>
+				<key>isConjunction</key>
+				<true/>
+			</dict>
+			<key>contentPageNumber</key>
+			<integer>1</integer>
+			<key>contentSelection</key>
+			<data>
+			YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0
+			b3BYJG9iamVjdHMSAAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRk
+			YXRhgAGtCwwZGhscHSEoLDA0OFUkbnVsbNMNDg8QFBhXTlMua2V5
+			c1pOUy5vYmplY3RzViRjbGFzc6MREhOAAoADgASjFRYXgAWABoAI
+			gAxUdHlwZVRyb3dzVGtleXNfECZTZWxlY3Rpb25EZXRhaWxUeXBl
+			UHJpbWFyeUtleWVkRGV0YWlsc9MNDg8eHyCgoIAH0iIjJCVaJGNs
+			YXNzbmFtZVgkY2xhc3Nlc18QE05TTXV0YWJsZURpY3Rpb25hcnmj
+			JCYnXE5TRGljdGlvbmFyeVhOU09iamVjdNIODykroSqACYAL0g8t
+			Li9ZTlMuc3RyaW5ngApSaWTSIiMxMl8QD05TTXV0YWJsZVN0cmlu
+			Z6MxMydYTlNTdHJpbmfSIiM1Nl5OU011dGFibGVBcnJheaM1NydX
+			TlNBcnJhedIiIyY5oiYnAAgAEQAaACQAKQAyADcASQBMAFEAUwBh
+			AGcAbgB2AIEAiACMAI4AkACSAJYAmACaAJwAngCjAKgArQDWAN0A
+			3gDfAOEA5gDxAPoBEAEUASEBKgEvATEBMwE1AToBRAFGAUkBTgFg
+			AWQBbQFyAYEBhQGNAZIAAAAAAAACAQAAAAAAAAA6AAAAAAAAAAAA
+			AAAAAAABlQ==
+			</data>
+			<key>contentSortColIsAsc</key>
+			<true/>
+			<key>contentViewport</key>
+			<string>{{0, 0}, {1014, 1323}}</string>
+			<key>isToolbarVisible</key>
+			<true/>
+			<key>queries</key>
+			<string>SELECT
+	pag.`attr_group_name` group_name,
+	ppaa.`attr_id` attr_id
+	ppaa.`attr_name` attr_name,
+	ppaa.`attr_value` attr_value
+FROM
+	`pms_attr_group` pag 
+	LEFT JOIN `pms_attr_attrgroup_relation` paar ON pag.`attr_group_id` = paar.`attr_group_id`
+	LEFT JOIN `pms_product_attr_value` ppaa ON ppaa.`attr_id` = paar.`attr_id`
+WHERE
+	pag.`catelog_id`=225 and ppaa.`spu_id`=0</string>
+			<key>table</key>
+			<string>pms_sku_sale_attr_value</string>
+			<key>view</key>
+			<string>SP_VIEW_CUSTOMQUERY</string>
+			<key>windowVerticalDividerPosition</key>
+			<real>261</real>
+		</dict>
+	</dict>
+	<key>encrypted</key>
+	<false/>
+	<key>format</key>
+	<string>connection</string>
+	<key>queryFavorites</key>
+	<array/>
+	<key>queryHistory</key>
+	<array>
+		<string>SELECT
+	*
+FROM
+	`pms_attr_group` pag 
+	LEFT JOIN `pms_attr_attrgroup_relation` paar ON pag.`attr_group_id` = paar.`attr_group_id`
+	LEFT JOIN `pms_product_attr_value` ppaa ON ppaa.`attr_id` = paar.`attr_id`
+WHERE
+	pag.`catelog_id`=225 and ppaa.`spu_id`=0</string>
+		<string>ppaa.`attr_id` attr_id
+	ppaa.`attr_name` attr_name,
+	ppaa.`attr_value` attr_valu</string>
+		<string>ppaa.`attr_id` attr_id
+	ppaa.`attr_name` attr_name,
+	ppaa.`attr_value` attr_values</string>
+		<string>SELECT
+	pag.`attr_group_name` group_name,
+	
+FROM
+	`pms_attr_group` pag 
+	LEFT JOIN `pms_attr_attrgroup_relation` paar ON pag.`attr_group_id` = paar.`attr_group_id`
+	LEFT JOIN `pms_product_attr_value` ppaa ON ppaa.`attr_id` = paar.`attr_id`
+WHERE
+	pag.`catelog_id`=225 and ppaa.`spu_id`=0</string>
+		<string>SELECT
+	pag.`attr_group_name` group_name,
+	ppaa.`attr_id` attr_id
+	ppaa.`attr_name` attr_name,
+	ppaa.`attr_value` attr_values
+FROM
+	`pms_attr_group` pag 
+	LEFT JOIN `pms_attr_attrgroup_relation` paar ON pag.`attr_group_id` = paar.`attr_group_id`
+	LEFT JOIN `pms_product_attr_value` ppaa ON ppaa.`attr_id` = paar.`attr_id`
+WHERE
+	pag.`catelog_id`=225 and ppaa.`spu_id`=0</string>
+		<string>SELECT
+	*
+FROM
+	`pms_attr_group` pag 
+	LEFT JOIN `pms_attr_attrgroup_relation` paar ON pag.`attr_group_id` = paar.`attr_group_id`
+	LEFT JOIN `pms_product_attr_value` ppaa ON ppaa.`attr_id` = paar.`attr_id`
+WHERE
+	pag.`catelog_id`=225</string>
+		<string>SELECT
+	*
+FROM
+	`pms_attr_group` pag 
+	LEFT JOIN `pms_attr_attrgroup_relation` paar ON pag.`attr_group_id` = paar.`attr_group_id`</string>
+		<string>SELECT
+	*
+FROM
+	`pms_attr_group`</string>
+		<string>SELECT 
+	pssav.`attr_id` attr_id,
+	pssav.`attr_name` attr_name,
+	pssav.`attr_value` attr_value,
+	GROUP_CONCAT(DISTINCT psi.`sku_id`) sku_ids
+FROM 
+	`pms_sku_info` psi LEFT JOIN 
+	`pms_sku_sale_attr_value` pssav ON
+	psi.`sku_id`=pssav.`sku_id`
+WHERE
+	psi.`spu_id`=0
+GROUP BY
+	pssav.`attr_id`,
+	pssav.`attr_name`,
+	pssav.`attr_value`</string>
+		<string>SELECT 
+	pssav.`attr_id` attr_id,
+	pssav.`attr_name` attr_name,
+	pssav.`attr_value` attr_value,
+	GROUP_CONCAT(DISTINCT psi.`sku_id`) sku_ids
+FROM 
+	`pms_sku_info` psi LEFT JOIN 
+	`pms_sku_sale_attr_value` pssav ON
+	psi.`sku_id`=pssav.`sku_id`
+WHERE
+	psi.`spu_id`=0
+GROUP BY
+	pssav.`attr_id`,
+	pssav.`attr_name`,
+pssav.`attr_value`</string>
+		<string>SELECT 
+	pssav.`attr_id` attr_id,
+	pssav.`attr_name` attr_name,
+	pssav.`attr_value` attr_value
+FROM 
+	`pms_sku_info` psi LEFT JOIN 
+	`pms_sku_sale_attr_value` pssav ON
+	psi.`sku_id`=pssav.`sku_id`
+WHERE
+	psi.`spu_id`=0</string>
+		<string>SELECT 
+	pssav.`attr_id` attr_id,
+	pssav.`attr_name` attr_name,
+	pssav.`attr_value` attr_value,
+	GROUP_CONCAT(DISTINCT psi.`sku_id`) sku_ids
+FROM 
+	`pms_sku_info` psi LEFT JOIN 
+	`pms_sku_sale_attr_value` pssav ON
+	psi.`sku_id`=pssav.`sku_id`
+WHERE
+	psi.`spu_id`=0</string>
+		<string>SELECT 
+	pssav.`attr_id` attr_id,
+	pssav.`attr_name` attr_name,
+	pssav.`attr_value` attr_value
+FROM 
+	`pms_sku_info` psi LEFT JOIN 
+	`pms_sku_sale_attr_value` pssav ON
+	psi.`sku_id`=pssav.`sku_id`
+WHERE
+	psi.`spu_id`=0
+GROUP BY
+	pssav.`attr_id`,
+	pssav.`attr_name`,
+	pssav.`attr_value`</string>
+		<string>SELECT 
+	pssav.`attr_id` attr_id,
+	pssav.`attr_name` attr_name,
+	pssav.`attr_value` attr_value,
+	GROUP_CONCAT(DISTINCT psi.`sku_id`) sku_id
+FROM 
+	`pms_sku_info` psi LEFT JOIN 
+	`pms_sku_sale_attr_value` pssav ON
+	psi.`sku_id`=pssav.`sku_id`
+WHERE
+	psi.`spu_id`=0
+GROUP BY
+	pssav.`attr_id`,
+	pssav.`attr_name`,
+	pssav.`attr_value`</string>
+		<string>GROUP_CONCAT(DISTINCT</string>
+		<string>SELECT 
+	*
+FROM 
+	`pms_sku_info` psi LEFT JOIN 
+	`pms_sku_sale_attr_value` pssav ON
+	psi.`sku_id`=pssav.`sku_id`
+WHERE
+	psi.`spu_id`=0
+GROUP BY
+	pssav.`attr_id`,
+	pssav.`attr_name`,
+	pssav.`attr_value`</string>
+		<string>SELECT 
+	pssav.`attr_id` attr_id,
+	pssav.`attr_name` attr_name,
+	pssav.`attr_value` attr_value,
+	psi.`sku_id` sku_id
+FROM 
+	`pms_sku_info` psi LEFT JOIN 
+	`pms_sku_sale_attr_value` pssav ON
+	psi.`sku_id`=pssav.`sku_id`
+WHERE
+	psi.`spu_id`=0
+GROUP BY
+	pssav.`attr_id`,
+	pssav.`attr_name`,
+	pssav.`attr_value`</string>
+		<string>DISTINCT</string>
+		<string>SELECT 
+	pssav.`attr_id` attr_id,
+	pssav.`attr_name` attr_name,
+	pssav.`attr_value` attr_value,
+	GROUP_CONCAT( psi.`sku_id`) sku_id
+FROM 
+	`pms_sku_info` psi LEFT JOIN 
+	`pms_sku_sale_attr_value` pssav ON
+	psi.`sku_id`=pssav.`sku_id`
+WHERE
+	psi.`spu_id`=0
+GROUP BY
+	pssav.`attr_id`,
+	pssav.`attr_name`,
+	pssav.`attr_value`</string>
+		<string>SELECT 
+	pssav.`attr_id` attr_id,
+	pssav.`attr_name` attr_name,
+	pssav.`attr_value` attr_value,
+	GROUP_CONCAT(DISTINCT psi.`sku_id`) sku_id
+FROM 
+	`pms_sku_info` psi LEFT JOIN 
+	`pms_sku_sale_attr_value` pssav ON
+	psi.`sku_id`=pssav.`sku_id`
+WHERE
+	psi.`spu_id`=0
+GROUP BY
+	pssav.`attr_id`,
+	pssav.`attr_name`,
+	pssav.`attr_value`,
+	psi.`sku_id`</string>
+	</array>
+	<key>rdbms_type</key>
+	<string>mysql</string>
+	<key>rdbms_version</key>
+	<string>5.7.36</string>
+	<key>version</key>
+	<integer>1</integer>
+</dict>
+</plist>

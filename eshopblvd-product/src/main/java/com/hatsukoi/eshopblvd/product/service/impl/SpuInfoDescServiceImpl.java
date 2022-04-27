@@ -19,4 +19,9 @@ public class SpuInfoDescServiceImpl implements SpuInfoDescService {
     public void insertSpuInfoDesc(SpuInfoDesc spuInfoDesc) {
         spuInfoDescMapper.insert(spuInfoDesc);
     }
+
+    @Override
+    public SpuInfoDesc getSpuInfoDescById(Long spuId) {
+        return spuInfoDescMapper.selectByPrimaryKey(spuId);
+    }
 }

@@ -3,6 +3,9 @@ package com.hatsukoi.eshopblvd.product.dao;
 import com.hatsukoi.eshopblvd.product.entity.AttrGroup;
 import com.hatsukoi.eshopblvd.product.entity.AttrGroupExample;
 import java.util.List;
+
+import com.hatsukoi.eshopblvd.product.entity.SpuItemAttrGroupPO;
+import com.hatsukoi.eshopblvd.product.vo.SkuItemVO;
 import org.apache.ibatis.annotations.Param;
 
 public interface AttrGroupMapper {
@@ -93,4 +96,6 @@ public interface AttrGroupMapper {
      * @mbg.generated
      */
     int updateByPrimaryKey(AttrGroup record);
+
+    List<SpuItemAttrGroupPO> getAttrGroupWithAttrsBySpuId(@Param("spuId") Long spuId, @Param("catalogId") Long catalogId);
 }

@@ -133,7 +133,7 @@ public class CategoryServiceImpl implements CategoryService {
      * @return
      */
     @Override
-    public  Map<String, Object> getHomepageInitData() {
+    public Map<String, Object> getHomepageInitData() {
         Map<String, Object> result = new HashMap<>();
         Map<Long, CatalogVO> catalog = getHomepageCatalogFromRedis();
         result.put("catalog", catalog);
