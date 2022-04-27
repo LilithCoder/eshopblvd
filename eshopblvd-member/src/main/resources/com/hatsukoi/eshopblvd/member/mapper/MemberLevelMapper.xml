@@ -234,6 +234,14 @@
       <include refid="Example_Where_Clause" />
     </if>
   </select>
+  <select id="getDefaultMemberLevel" resultType="java.lang.Long">
+    SELECT
+      id
+    FROM
+      `ums_member_level`
+    WHERE
+      default_status=1
+  </select>
   <update id="updateByExampleSelective" parameterType="map">
     <!--
       WARNING - @mbg.generated

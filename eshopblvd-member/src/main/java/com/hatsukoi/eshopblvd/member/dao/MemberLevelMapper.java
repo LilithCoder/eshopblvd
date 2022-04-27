@@ -93,4 +93,6 @@ public interface MemberLevelMapper {
      * @mbg.generated
      */
     int updateByPrimaryKey(MemberLevel record);
+
+    Long getDefaultMemberLevel();
 }

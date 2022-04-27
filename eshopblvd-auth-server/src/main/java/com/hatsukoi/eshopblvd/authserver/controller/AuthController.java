@@ -1,19 +1,19 @@
 package com.hatsukoi.eshopblvd.authserver.controller;
 
-import com.hatsukoi.eshopblvd.api.thirdparty.SmsSendRpcService;
-import com.hatsukoi.eshopblvd.constant.AuthServerConstant;
+import com.hatsukoi.eshopblvd.authserver.exception.*;
+import com.hatsukoi.eshopblvd.authserver.service.AuthService;
+import com.hatsukoi.eshopblvd.authserver.vo.UserRegisterVO;
 import com.hatsukoi.eshopblvd.exception.BizCodeEnum;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
-import org.apache.commons.lang.StringUtils;
-import org.apache.dubbo.config.annotation.Reference;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.annotation.*;
 
-import java.util.UUID;
+import javax.validation.Valid;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 认证控制器：（注册&登陆&短信验证码）
@@ -24,10 +24,7 @@ import java.util.UUID;
 @RequestMapping("auth")
 public class AuthController {
     @Autowired
-    private StringRedisTemplate stringRedisTemplate;
-
-    @Reference(check = false, interfaceName = "com.hatsukoi.eshopblvd.api.thirdparty.SmsSendRpcService")
-    private SmsSendRpcService smsSendRpcService;
+    private AuthService authService;
 
     /**
      * 发送短信验证码接口
@@ -36,29 +33,86 @@ public class AuthController {
      */
     @GetMapping("/sms/sendcode")
     public CommonResponse sendSmsCode(@RequestParam("phone") String phone) {
-        String key = AuthServerConstant.SMS_CODE_CACHE_PREFIX + phone;
+        try {
+            authService.sendSmsCode(phone);
+        } catch (SmsFrequentException exception) {
+            return CommonResponse.error(BizCodeEnum.SMS_CODE_EXCEPTION.getCode(), BizCodeEnum.SMS_CODE_EXCEPTION.getMsg());
+        }
+        return CommonResponse.success();
+    }
 
-        // 1. 接口防刷
-        String redisCode = stringRedisTemplate.opsForValue().get(key);
-        if (!StringUtils.isEmpty(redisCode)) {
-            // 获取这条已经发送该手机号上且存入redis的记录
-            // 获取这条记录存入redis的时间，如果大于60s，这个手机号就可以再获取一次验证码
-            long timestamp = Long.parseLong(redisCode.split("_")[1]);
-            if (System.currentTimeMillis() - timestamp < AuthServerConstant.RECURRENT_TIME) {
-                // 60s内不能再发验证码，返沪响应的错误码和错误信息
-                return CommonResponse.error(BizCodeEnum.SMS_CODE_EXCEPTION.getCode(), BizCodeEnum.SMS_CODE_EXCEPTION.getMsg());
-            }
+    /**
+     * 新用户注册接口
+     * @param userRegisterVO
+     * @param result
+     * @return
+     */
+    @PostMapping("/register")
+    public CommonResponse register(@Valid UserRegisterVO userRegisterVO, BindingResult result) {
+        Map<String, String> errPrompt;
+
+        // 1. 如果提交的注册信息校验出错，直接返回出错信息
+        if (result.hasErrors()) {
+            errPrompt = result.getFieldErrors().stream().collect(Collectors.toMap(FieldError::getField, FieldError::getDefaultMessage));
+            // 返回这些数据校验错误的信息，在注册页上展示
+            return CommonResponse.error().setData(errPrompt);
         }
 
-        // 2. 该手机号首次发送验证码或者是过了60s可以再次发验证码了
-        String code = UUID.randomUUID().toString().substring(0, 5);
-        // 值是验证码加上当前系统时间，这是为了之后防止的再次获取验证码时距离上次没有超过60s
-        String codeValue = code + "_" + System.currentTimeMillis();
-        // redis缓存验证码，加上有效时间10min，用户10min内要来注册成功，否则就失效了
-        stringRedisTemplate.opsForValue().set(key, codeValue);
-
-        // 3. RPC调用三方服务去给手机号发送验证码
-        smsSendRpcService.sendCode(phone, code);
+        // 2. 开始注册业务逻辑，根据抛出的不同异常来返回不同的错误信息提示
+        try {
+            authService.register(userRegisterVO);
+        } catch (SmsCodeNonmatchException exception) {
+            // 验证码匹配错误
+            errPrompt = new HashMap<>();
+            errPrompt.put("verification_code", "验证码匹配错误");
+            // 返回这些数据校验错误的信息，在注册页上展示
+            return CommonResponse.error().setData(errPrompt);
+        } catch (SmsCodeTimeoutException exception) {
+            // 验证码10min过期或者用户根本没有获取验证码
+            errPrompt = new HashMap<>();
+            errPrompt.put("verification_code", "验证码过期或尚未获取验证码");
+            // 返回这些数据校验错误的信息，在注册页上展示
+            return CommonResponse.error().setData(errPrompt);
+        } catch (PhoneExistException exception) {
+            errPrompt = new HashMap<>();
+            errPrompt.put("phone", "手机号已被注册");
+            // 返回这些数据校验错误的信息，在注册页上展示
+            return CommonResponse.error().setData(errPrompt);
+        } catch (UserExistException exception) {
+            errPrompt = new HashMap<>();
+            errPrompt.put("userName", "用户名已被占用");
+            // 返回这些数据校验错误的信息，在注册页上展示
+            return CommonResponse.error().setData(errPrompt);
+        }
+        // 3. 注册成功，返回后页面跳转到登陆页
         return CommonResponse.success();
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -3866,6 +3866,8 @@ public class SmsSendController {
   - 60s以后再次调用，需要删除之前存储的`phone-code`
   - code存在一个过期时间，我们设置为10min，10min内验证该验证码有效
 
+#### 接口逻辑
+
 ![](./docs/assets/185.svg)
 
 ```java
@@ -3912,3 +3914,126 @@ public class AuthController {
     }
 }
 ```
+
+### 新增【接口】注册功能
+
+在`gulimall-auth-server`服务中编写注册的主体逻辑
+
+- 若JSR303校验未通过，则通过`BindingResult`封装错误信息，并重定向至注册页面
+- 若通过JSR303校验，则需要从`redis`中取值判断验证码是否正确，正确的话通过会员服务注册
+- 会员服务调用成功则重定向至登录页，否则封装远程服务返回的错误信息返回至注册页面
+
+注： `RedirectAttributes`可以通过session保存信息并在重定向的时候携带过去
+
+```java
+ @PostMapping("/register")
+    public String register(@Valid UserRegisterVo registerVo, BindingResult result, RedirectAttributes attributes) {
+        //1.判断校验是否通过
+        Map<String, String> errors = new HashMap<>();
+        if (result.hasErrors()){
+            //1.1 如果校验不通过，则封装校验结果
+            result.getFieldErrors().forEach(item->{
+                errors.put(item.getField(), item.getDefaultMessage());
+                //1.2 将错误信息封装到session中
+                attributes.addFlashAttribute("errors", errors);
+            });
+            //1.2 重定向到注册页
+            return "redirect:http://auth.gulimall.com/reg.html";
+        }else {
+            //2.若JSR303校验通过
+            //判断验证码是否正确
+            String code = redisTemplate.opsForValue().get(AuthServerConstant.SMS_CODE_CACHE_PREFIX + registerVo.getPhone());
+            //2.1 如果对应手机的验证码不为空且与提交上的相等-》验证码正确
+            if (!StringUtils.isEmpty(code) && registerVo.getCode().equals(code.split("_")[0])) {
+                //2.1.1 使得验证后的验证码失效
+                redisTemplate.delete(AuthServerConstant.SMS_CODE_CACHE_PREFIX + registerVo.getPhone());
+
+                //2.1.2 远程调用会员服务注册
+                R r = memberFeignService.register(registerVo);
+                if (r.getCode() == 0) {
+                    //调用成功，重定向登录页
+                    return "redirect:http://auth.gulimall.com/login.html";
+                }else {
+                    //调用失败，返回注册页并显示错误信息
+                    String msg = (String) r.get("msg");
+                    errors.put("msg", msg);
+                    attributes.addFlashAttribute("errors", errors);
+                    return "redirect:http://auth.gulimall.com/reg.html";
+                }
+            }else {
+                //2.2 验证码错误
+                errors.put("code", "验证码错误");
+                attributes.addFlashAttribute("errors", errors);
+                return "redirect:http://auth.gulimall.com/reg.html";
+            }
+        }
+    }
+```
+
+通过`gulimall-member`会员服务注册逻辑
+
+- 通过异常机制判断当前注册会员名和电话号码是否已经注册，如果已经注册，则抛出对应的自定义异常，并在返回时封装对应的错误信息
+- 如果没有注册，则封装传递过来的会员信息，并设置默认的会员等级、创建时间
+
+```java
+ @RequestMapping("/register")
+    public R register(@RequestBody MemberRegisterVo registerVo) {
+        try {
+            memberService.register(registerVo);
+            //异常机制：通过捕获对应的自定义异常判断出现何种错误并封装错误信息
+        } catch (UserExistException userException) {
+            return R.error(BizCodeEnum.USER_EXIST_EXCEPTION.getCode(), BizCodeEnum.USER_EXIST_EXCEPTION.getMsg());
+        } catch (PhoneNumExistException phoneException) {
+            return R.error(BizCodeEnum.PHONE_EXIST_EXCEPTION.getCode(), BizCodeEnum.PHONE_EXIST_EXCEPTION.getMsg());
+        }
+        return R.ok();
+    }
+public void register(MemberRegisterVo registerVo) {
+    //1 检查电话号是否唯一
+    checkPhoneUnique(registerVo.getPhone());
+    //2 检查用户名是否唯一
+    checkUserNameUnique(registerVo.getUserName());
+    //3 该用户信息唯一，进行插入
+    MemberEntity entity = new MemberEntity();
+    //3.1 保存基本信息
+    entity.setUsername(registerVo.getUserName());
+    entity.setMobile(registerVo.getPhone());
+    entity.setCreateTime(new Date());
+    //3.2 使用加密保存密码
+    BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    String encodePassword = passwordEncoder.encode(registerVo.getPassword());
+    entity.setPassword(encodePassword);
+    //3.3 设置会员默认等级
+    //3.3.1 找到会员默认登记
+    MemberLevelEntity defaultLevel = memberLevelService.getOne(new QueryWrapper<MemberLevelEntity>().eq("default_status", 1));
+    //3.3.2 设置会员等级为默认
+    entity.setLevelId(defaultLevel.getId());
+
+    // 4 保存用户信息
+    this.save(entity);
+}
+
+private void checkUserNameUnique(String userName) {
+    Integer count = baseMapper.selectCount(new QueryWrapper<MemberEntity>().eq("username", userName));
+    if (count > 0) {
+        throw new UserExistException();
+    }
+}
+
+private void checkPhoneUnique(String phone) {
+    Integer count = baseMapper.selectCount(new QueryWrapper<MemberEntity>().eq("mobile", phone));
+    if (count > 0) {
+        throw new PhoneNumExistException();
+    }
+}
+```
+
+#### 密码加密(MD5&盐值&Bcrypt)
+
+![](./docs/assets/186.png)
+
+![](./docs/assets/187.png)
+
+#### 接口逻辑
+
+![](./docs/assets/188.svg)
