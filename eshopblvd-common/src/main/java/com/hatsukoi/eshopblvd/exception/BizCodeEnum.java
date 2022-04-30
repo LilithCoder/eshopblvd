@@ -22,9 +22,14 @@ package com.hatsukoi.eshopblvd.exception;
 public enum BizCodeEnum {
     UNKOWN_EXCEPTION(10000, "系统未知异常"),
     VALID_EXCEPTION(10001, "参数格式校验失败"),
-    SMS_CODE_EXCEPTION(10002,"验证码获取频率太高，稍后再试"),
-    USER_EXIST_EXCEPTION(15001,"用户名已被占用"),
-    PHONE_EXIST_EXCEPTION(15002,"手机号已被注册");
+    SMS_CODE_EXCEPTION(10002,"验证码获取频率太高，稍后再试"), // 验证码获取
+    SMS_CODE_NONMATCH_EXCEPTION(15001,"验证码匹配错误"), // 注册
+    SMS_CODE_TIMEOUT_EXCEPTION(15002,"验证码过期或尚未获取验证码"), // 注册
+    USER_EXIST_EXCEPTION(15003,"用户名已被占用"), // 注册
+    PHONE_EXIST_EXCEPTION(15004,"手机号已被注册"), // 注册
+    LOGINACCT_NONEXIST_EXCEPTION(15005,"该账号尚未注册"), // 登陆
+    LOGINACCT_PASSWORD_INVAILD_EXCEPTION(15006,"账号密码错误"); // 登陆
+
 
     private int code;
     private String msg;

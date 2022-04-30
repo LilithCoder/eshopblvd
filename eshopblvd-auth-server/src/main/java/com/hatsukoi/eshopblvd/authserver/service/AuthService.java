@@ -1,9 +1,10 @@
 package com.hatsukoi.eshopblvd.authserver.service;
 
-import com.hatsukoi.eshopblvd.authserver.exception.SmsCodeNonmatchException;
-import com.hatsukoi.eshopblvd.authserver.exception.SmsCodeTimeoutException;
-import com.hatsukoi.eshopblvd.authserver.exception.SmsFrequentException;
+import com.hatsukoi.eshopblvd.authserver.exception.*;
+import com.hatsukoi.eshopblvd.authserver.vo.UserLoginVO;
 import com.hatsukoi.eshopblvd.authserver.vo.UserRegisterVO;
+
+import javax.servlet.http.HttpSession;
 
 /**
  * @author gaoweilin
@@ -13,4 +14,6 @@ public interface AuthService {
     void sendSmsCode(String phone) throws SmsFrequentException;
 
     void register(UserRegisterVO userRegisterVO) throws SmsCodeNonmatchException, SmsCodeTimeoutException;
+
+    void login(UserLoginVO userLoginVO, HttpSession session) throws LoginAcctNonExistException, LoginAcctPasswordInvalidException;
 }

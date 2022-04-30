@@ -4037,3 +4037,68 @@ private void checkPhoneUnique(String phone) {
 #### 接口逻辑
 
 ![](./docs/assets/188.svg)
+
+## 登陆功能
+
+### 新增【接口】登录功能
+
+#### 接口逻辑
+
+![](./docs/assets/189.svg)
+
+在`gulimall-auth-server`模块中的主体逻辑
+
+- 通过会员服务远程调用登录接口
+  - 如果调用成功，重定向至首页
+  - 如果调用失败，则封装错误信息并携带错误信息重定向至登录页
+
+```java
+@RequestMapping("/login")
+public String login(UserLoginVo vo,RedirectAttributes attributes){
+    R r = memberFeignService.login(vo);
+    if (r.getCode() == 0) {
+        return "redirect:http://gulimall.com/";
+    }else {
+        String msg = (String) r.get("msg");
+        Map<String, String> errors = new HashMap<>();
+        errors.put("msg", msg);
+        attributes.addFlashAttribute("errors", errors);
+        return "redirect:http://auth.gulimall.com/login.html";
+    }
+}
+```
+
+在`gulimall-member`模块中完成登录
+
+- 当数据库中含有以当前登录名为用户名或电话号且密码匹配时，验证通过，返回查询到的实体
+- 否则返回null，并在controller返回`用户名或密码错误`
+
+```java
+@RequestMapping("/login")
+public R login(@RequestBody MemberLoginVo loginVo) {
+    MemberEntity entity=memberService.login(loginVo);
+    if (entity!=null){
+        return R.ok();
+    }else {
+        return R.error(BizCodeEnum.LOGINACCT_PASSWORD_EXCEPTION.getCode(), BizCodeEnum.LOGINACCT_PASSWORD_EXCEPTION.getMsg());
+    }
+}
+
+	@Override
+    public MemberEntity login(MemberLoginVo loginVo) {
+        String loginAccount = loginVo.getLoginAccount();
+        //以用户名或电话号登录的进行查询
+        MemberEntity entity = this.getOne(new QueryWrapper<MemberEntity>().eq("username", loginAccount).or().eq("mobile", loginAccount));
+        if (entity!=null){
+            BCryptPasswordEncoder bCryptPasswordEncoder = new BCryptPasswordEncoder();
+            boolean matches = bCryptPasswordEncoder.matches(loginVo.getPassword(), entity.getPassword());
+            if (matches){
+                entity.setPassword("");
+                return entity;
+            }
+        }
+        return null;
+    }
+```
+
+### 

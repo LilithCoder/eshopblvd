@@ -10,11 +10,16 @@ import com.hatsukoi.eshopblvd.member.exception.PhoneExistException;
 import com.hatsukoi.eshopblvd.member.exception.UsernameExistException;
 import com.hatsukoi.eshopblvd.member.util.EncryptUtils;
 import com.hatsukoi.eshopblvd.to.MemberRegisterTO;
+import com.hatsukoi.eshopblvd.to.MemberTO;
+import com.hatsukoi.eshopblvd.to.UserLoginTO;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
 
 /**
  * @author gaoweilin
@@ -30,7 +35,7 @@ public class MemberRpcServiceImpl implements MemberService {
     private MemberMapper memberMapper;
 
     /**
-     * 用户注册接口方法
+     * 用户注册接口方法RPC实现
      * @param memberRegisterTO
      */
     @Override
@@ -43,6 +48,46 @@ public class MemberRpcServiceImpl implements MemberService {
             return CommonResponse.error(BizCodeEnum.USER_EXIST_EXCEPTION.getCode(), BizCodeEnum.USER_EXIST_EXCEPTION.getMsg());
         }
         return CommonResponse.success();
+    }
+
+    /**
+     * 用户登陆接口方法RPC实现
+     * @param userLoginVO
+     * @return
+     */
+    @Override
+    public CommonResponse login(UserLoginTO userLoginVO) {
+        String userAcc = userLoginVO.getUserAcc();
+        String rawPassword = userLoginVO.getPassword();
+
+        // 1. 去数据库查询是否有这个登录账号对应的用户，可能是手机号或用户名
+        // SELECT * FROM `ums_member` WHERE username=? OR mobile=?
+        MemberExample memberExample = new MemberExample();
+        MemberExample.Criteria criteria = memberExample.createCriteria();
+        criteria.andUsernameEqualTo(userAcc);
+        MemberExample.Criteria criteria1 = memberExample.createCriteria();
+        criteria1.andMobileEqualTo(userAcc);
+        memberExample.or(criteria1);
+        List<Member> members = memberMapper.selectByExample(memberExample);
+
+        if (members == null || members.size() == 0) {
+            // 该用户没有注册
+            CommonResponse error = CommonResponse.error(BizCodeEnum.LOGINACCT_NONEXIST_EXCEPTION.getCode(), BizCodeEnum.LOGINACCT_NONEXIST_EXCEPTION.getMsg());
+            return error;
+        } else {
+            Member member = members.get(0);
+            // 登陆密码校验
+            String encryptedPassword = member.getPassword();
+            Long salt = member.getSalt();
+            boolean verify = EncryptUtils.verify(rawPassword, salt, encryptedPassword);
+            if (verify) {
+                MemberTO memberTO = new MemberTO();
+                BeanUtils.copyProperties(member, memberTO);
+                return CommonResponse.success().setData(memberTO);
+            } else {
+                return CommonResponse.error(BizCodeEnum.LOGINACCT_PASSWORD_INVAILD_EXCEPTION.getCode(), BizCodeEnum.LOGINACCT_PASSWORD_INVAILD_EXCEPTION.getMsg());
+            }
+        }
     }
 
     /**
