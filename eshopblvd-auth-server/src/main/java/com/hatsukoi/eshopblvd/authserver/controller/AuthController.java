@@ -2,14 +2,17 @@ package com.hatsukoi.eshopblvd.authserver.controller;
 
 import com.hatsukoi.eshopblvd.authserver.exception.*;
 import com.hatsukoi.eshopblvd.authserver.service.AuthService;
+import com.hatsukoi.eshopblvd.authserver.vo.UserLoginVO;
 import com.hatsukoi.eshopblvd.authserver.vo.UserRegisterVO;
 import com.hatsukoi.eshopblvd.exception.BizCodeEnum;
+import com.hatsukoi.eshopblvd.to.MemberTO;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpSession;
 import javax.validation.Valid;
 import java.util.HashMap;
 import java.util.Map;
@@ -64,27 +67,49 @@ public class AuthController {
         } catch (SmsCodeNonmatchException exception) {
             // 验证码匹配错误
             errPrompt = new HashMap<>();
-            errPrompt.put("verification_code", "验证码匹配错误");
+            errPrompt.put("verification_code", BizCodeEnum.SMS_CODE_NONMATCH_EXCEPTION.getMsg());
             // 返回这些数据校验错误的信息，在注册页上展示
-            return CommonResponse.error().setData(errPrompt);
+            return CommonResponse.error(BizCodeEnum.SMS_CODE_NONMATCH_EXCEPTION.getCode()).setData(errPrompt);
         } catch (SmsCodeTimeoutException exception) {
             // 验证码10min过期或者用户根本没有获取验证码
             errPrompt = new HashMap<>();
-            errPrompt.put("verification_code", "验证码过期或尚未获取验证码");
+            errPrompt.put("verification_code", BizCodeEnum.SMS_CODE_TIMEOUT_EXCEPTION.getMsg());
             // 返回这些数据校验错误的信息，在注册页上展示
-            return CommonResponse.error().setData(errPrompt);
+            return CommonResponse.error(BizCodeEnum.SMS_CODE_TIMEOUT_EXCEPTION.getCode()).setData(errPrompt);
         } catch (PhoneExistException exception) {
             errPrompt = new HashMap<>();
-            errPrompt.put("phone", "手机号已被注册");
+            errPrompt.put("phone", BizCodeEnum.PHONE_EXIST_EXCEPTION.getMsg());
             // 返回这些数据校验错误的信息，在注册页上展示
-            return CommonResponse.error().setData(errPrompt);
+            return CommonResponse.error(BizCodeEnum.PHONE_EXIST_EXCEPTION.getCode()).setData(errPrompt);
         } catch (UserExistException exception) {
             errPrompt = new HashMap<>();
-            errPrompt.put("userName", "用户名已被占用");
+            errPrompt.put("userName", BizCodeEnum.USER_EXIST_EXCEPTION.getMsg());
             // 返回这些数据校验错误的信息，在注册页上展示
-            return CommonResponse.error().setData(errPrompt);
+            return CommonResponse.error(BizCodeEnum.USER_EXIST_EXCEPTION.getCode()).setData(errPrompt);
         }
         // 3. 注册成功，返回后页面跳转到登陆页
+        return CommonResponse.success();
+    }
+
+    /**
+     * 用户登陆接口
+     * @param userLoginVO
+     * @param session
+     * @return
+     */
+    @PostMapping("/login")
+    public CommonResponse login(UserLoginVO userLoginVO, HttpSession session) {
+        try {
+            // 调用登陆业务
+            authService.login(userLoginVO, session);
+        } catch (LoginAcctNonExistException exception) {
+            // 返回错误信息，在登陆页上展示
+            return CommonResponse.error(BizCodeEnum.LOGINACCT_NONEXIST_EXCEPTION.getCode(), BizCodeEnum.LOGINACCT_NONEXIST_EXCEPTION.getMsg());
+        } catch (LoginAcctPasswordInvalidException exception) {
+            // 返回错误信息，在登陆页上展示
+            return CommonResponse.error(BizCodeEnum.LOGINACCT_PASSWORD_INVAILD_EXCEPTION.getCode(), BizCodeEnum.LOGINACCT_PASSWORD_INVAILD_EXCEPTION.getMsg());
+        }
+        // 登陆成功，返回首页eshopblvd.com
         return CommonResponse.success();
     }
 }

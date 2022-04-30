@@ -1,21 +1,27 @@
 package com.hatsukoi.eshopblvd.authserver.service.impl;
 
+import com.alibaba.fastjson.TypeReference;
 import com.hatsukoi.eshopblvd.api.member.MemberService;
 import com.hatsukoi.eshopblvd.api.thirdparty.SmsSendRpcService;
 import com.hatsukoi.eshopblvd.authserver.exception.*;
 import com.hatsukoi.eshopblvd.authserver.service.AuthService;
+import com.hatsukoi.eshopblvd.authserver.vo.UserLoginVO;
 import com.hatsukoi.eshopblvd.authserver.vo.UserRegisterVO;
 import com.hatsukoi.eshopblvd.constant.AuthServerConstant;
 import com.hatsukoi.eshopblvd.exception.BizCodeEnum;
 import com.hatsukoi.eshopblvd.to.MemberRegisterTO;
+import com.hatsukoi.eshopblvd.to.MemberTO;
+import com.hatsukoi.eshopblvd.to.UserLoginTO;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import org.apache.commons.lang.StringUtils;
 import org.apache.dubbo.config.annotation.Reference;
+import org.apache.http.HttpStatus;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import javax.servlet.http.HttpSession;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -102,6 +108,28 @@ public class AuthServiceImpl implements AuthService {
         } else {
             // 验证码10min过期或者用户根本没有获取验证码
             throw new SmsCodeTimeoutException();
+        }
+    }
+
+    /**
+     * 用户登陆
+     * @param userLoginVO
+     * @param session
+     */
+    @Override
+    public void login(UserLoginVO userLoginVO, HttpSession session) throws LoginAcctNonExistException, LoginAcctPasswordInvalidException {
+        UserLoginTO userLoginTO = new UserLoginTO();
+        BeanUtils.copyProperties(userLoginVO, userLoginTO);
+        HashMap<String, Object> login = memberService.login(userLoginTO);
+        CommonResponse commonResponse = CommonResponse.convertToResp(login);
+        if (commonResponse.getCode() == HttpStatus.SC_OK) {
+            MemberTO data = commonResponse.getData(new TypeReference<MemberTO>() {
+            });
+            session.setAttribute(AuthServerConstant.LOGIN_USER, data);
+        } else if (commonResponse.getCode() == BizCodeEnum.LOGINACCT_NONEXIST_EXCEPTION.getCode()) {
+            throw new LoginAcctNonExistException();
+        } else if (commonResponse.getCode() == BizCodeEnum.LOGINACCT_PASSWORD_INVAILD_EXCEPTION.getCode()) {
+            throw new LoginAcctPasswordInvalidException();
         }
     }
 }

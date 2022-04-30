@@ -13,4 +13,8 @@ public class AuthServerConstant {
      * 同一手机号再次可以获取验证码的时间
      */
     public static final long RECURRENT_TIME = 60 * 1000;
+    /**
+     * 登陆成功后用户信息放入session对应的字段key
+     */
+    public static final String LOGIN_USER = "loginUser";
 }

@@ -44,6 +44,12 @@ public class CommonResponse extends HashMap<String, Object> {
         return new CommonResponse(false);
     }
 
+    public static CommonResponse error(int code) {
+        CommonResponse resp = new CommonResponse(false);
+        resp.put("code", code);
+        return resp;
+    }
+
     public static CommonResponse error(String msg) {
         CommonResponse resp = new CommonResponse(false);
         resp.put("msg", msg);
@@ -109,9 +115,9 @@ public class CommonResponse extends HashMap<String, Object> {
         CommonResponse resp = null;
         int code = Integer.parseInt(map.get("code").toString());
         if (code == HttpStatus.SC_OK) {
-            resp = new CommonResponse(true);
+            resp = CommonResponse.success();
         } else {
-            resp = new CommonResponse(false);
+            resp = CommonResponse.error(code);
         }
         String msg = map.get("msg").toString();
         if (!StringUtils.isEmpty(msg)) {
