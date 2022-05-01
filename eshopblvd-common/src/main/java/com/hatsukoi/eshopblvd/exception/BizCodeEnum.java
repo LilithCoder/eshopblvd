@@ -28,7 +28,9 @@ public enum BizCodeEnum {
     USER_EXIST_EXCEPTION(15003,"用户名已被占用"), // 注册
     PHONE_EXIST_EXCEPTION(15004,"手机号已被注册"), // 注册
     LOGINACCT_NONEXIST_EXCEPTION(15005,"该账号尚未注册"), // 登陆
-    LOGINACCT_PASSWORD_INVAILD_EXCEPTION(15006,"账号密码错误"); // 登陆
+    LOGINACCT_PASSWORD_INVAILD_EXCEPTION(15006,"账号密码错误"), // 登陆
+    WEIBO_OAUTH2_RPC_FAIL(15007,"RPC会员服务登陆接口失败"), // 社交登陆
+    WEIBO_OAUTH2_ACCESS_FAIL(15008,"微博访问权限令牌access_token获取失败"); // 社交登陆
 
 
     private int code;

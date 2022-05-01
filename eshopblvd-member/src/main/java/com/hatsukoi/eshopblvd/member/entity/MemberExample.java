@@ -1391,6 +1391,10 @@ public class MemberExample {
             addCriterion("create_time not between", value1, value2, "createTime");
             return (Criteria) this;
         }
+        public Criteria andSocialUidEqualTo(String value) {
+            addCriterion("social_uid =", value, "socialUid");
+            return (Criteria) this;
+        }
     }
 
     /**

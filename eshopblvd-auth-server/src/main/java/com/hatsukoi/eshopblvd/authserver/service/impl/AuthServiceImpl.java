@@ -1,5 +1,6 @@
 package com.hatsukoi.eshopblvd.authserver.service.impl;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
 import com.hatsukoi.eshopblvd.api.member.MemberService;
 import com.hatsukoi.eshopblvd.api.thirdparty.SmsSendRpcService;
@@ -11,16 +12,21 @@ import com.hatsukoi.eshopblvd.constant.AuthServerConstant;
 import com.hatsukoi.eshopblvd.exception.BizCodeEnum;
 import com.hatsukoi.eshopblvd.to.MemberRegisterTO;
 import com.hatsukoi.eshopblvd.to.MemberTO;
+import com.hatsukoi.eshopblvd.to.SocialUserTO;
 import com.hatsukoi.eshopblvd.to.UserLoginTO;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
+import com.hatsukoi.eshopblvd.utils.HttpUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.dubbo.config.annotation.Reference;
+import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
+import org.apache.http.util.EntityUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import java.util.HashMap;
 import java.util.Map;
@@ -130,6 +136,53 @@ public class AuthServiceImpl implements AuthService {
             throw new LoginAcctNonExistException();
         } else if (commonResponse.getCode() == BizCodeEnum.LOGINACCT_PASSWORD_INVAILD_EXCEPTION.getCode()) {
             throw new LoginAcctPasswordInvalidException();
+        }
+    }
+
+    /**
+     * 微博oauth2.0登陆逻辑
+     * @param code
+     * @param session
+     * @param response
+     */
+    @Override
+    public void weiboLogin(String code, HttpSession session, HttpServletResponse response) throws Exception, WeiboOAuth2RpcFail, WeiboOAuth2AccessFail {
+        // 1. 授权成功跳转后得到了code，用这个去获取access_token和uid
+        // 接口wiki：https://open.weibo.com/wiki/Oauth2/access_token
+        Map<String, String> requestBody = new HashMap<>();
+        // 申请应用时分配的AppKey
+        // TODO: 等审核通过后需要修改为自己的
+        requestBody.put("client_id", "2636917288");
+        // 申请应用时分配的AppSecret
+        // TODO: 等审核通过后需要修改为自己的
+        requestBody.put("client_secret", "6a263e9284c6c1a74a62eadacc11b6e2");
+        // 请求的类型
+        requestBody.put("grant_type", "authorization_code");
+        // 回调地址，需需与注册应用里的回调地址一致
+        // TODO: 等审核通过后需要修改为自己的
+        requestBody.put("redirect_uri", "http://auth.gulimall.com/oauth2.0/weibo/success");
+        // 调用authorize获得的code值
+        requestBody.put("code", code);
+        HttpResponse postResp = HttpUtils.doPost("https://api.weibo.com", "/oauth2/access_token", "post", null, null, requestBody);
+
+        // 2. 从返回结果中解析中access_token和uid，登陆注册这个用户
+        if (postResp.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+            String jsonStr = EntityUtils.toString(postResp.getEntity());
+            SocialUserTO socialUser = JSON.parseObject(jsonStr, SocialUserTO.class);
+            // RPC调用会员服务去登陆&自动注册这个用户
+            CommonResponse resp = CommonResponse.convertToResp(memberService.weiboLogin(socialUser));
+            if (resp.getCode() == HttpStatus.SC_OK) {
+                // 将登陆的用户信息存入session中
+                SocialUserTO loginUser = resp.getData(new TypeReference<SocialUserTO>(){});
+                session.setAttribute("loginUser", loginUser);
+                return;
+            } else {
+                // RPC会员服务登陆接口失败
+                throw new WeiboOAuth2RpcFail();
+            }
+        } else {
+            // 微博访问权限获取失败
+            throw new WeiboOAuth2AccessFail();
         }
     }
 }

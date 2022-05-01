@@ -4038,7 +4038,7 @@ private void checkPhoneUnique(String phone) {
 
 ![](./docs/assets/188.svg)
 
-## 登陆功能
+## 用户密码登陆
 
 ### 新增【接口】登录功能
 
@@ -4101,4 +4101,32 @@ public R login(@RequestBody MemberLoginVo loginVo) {
     }
 ```
 
-### 
+## OAuth2.0社交登陆
+
+### 基本流程
+
+![](./docs/assets/190.png)
+
+![](./docs/assets/191.png)
+
+![](./docs/assets/192.png)
+
+![](./docs/assets/193.png) 
+
+### 微博社交登陆
+
+https://open.weibo.com/
+
+![](./docs/assets/194.png)
+
+![](./docs/assets/195.png)
+![](./docs/assets/196.png)
+![](./docs/assets/197.png)
+![](./docs/assets/198.png)
+![](./docs/assets/199.png)
+
+### 基本逻辑
+
+新增【接口】微博社交登陆成功回调
+
+![](./docs/assets/201.svg)

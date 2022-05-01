@@ -1,5 +1,7 @@
 package com.hatsukoi.eshopblvd.member.service.impl;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import com.hatsukoi.eshopblvd.api.member.MemberService;
 import com.hatsukoi.eshopblvd.exception.BizCodeEnum;
 import com.hatsukoi.eshopblvd.member.dao.MemberLevelMapper;
@@ -11,8 +13,13 @@ import com.hatsukoi.eshopblvd.member.exception.UsernameExistException;
 import com.hatsukoi.eshopblvd.member.util.EncryptUtils;
 import com.hatsukoi.eshopblvd.to.MemberRegisterTO;
 import com.hatsukoi.eshopblvd.to.MemberTO;
+import com.hatsukoi.eshopblvd.to.SocialUserTO;
 import com.hatsukoi.eshopblvd.to.UserLoginTO;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
+import com.hatsukoi.eshopblvd.utils.HttpUtils;
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
+import org.apache.http.util.EntityUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -20,6 +27,7 @@ import org.springframework.stereotype.Service;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author gaoweilin
@@ -88,6 +96,61 @@ public class MemberRpcServiceImpl implements MemberService {
                 return CommonResponse.error(BizCodeEnum.LOGINACCT_PASSWORD_INVAILD_EXCEPTION.getCode(), BizCodeEnum.LOGINACCT_PASSWORD_INVAILD_EXCEPTION.getMsg());
             }
         }
+    }
+
+    /**
+     * 微博社交登陆&自动注册
+     * @param socialUser
+     * @return
+     */
+    @Override
+    public CommonResponse weiboLogin(SocialUserTO socialUser) {
+        String uid = socialUser.getUid();
+        // 合并社交用户登陆和注册的逻辑
+        // 1. 判断该社交用户是否已经注册登陆过我们的系统
+        MemberExample memberExample = new MemberExample();
+        memberExample.createCriteria().andSocialUidEqualTo(uid);
+        List<Member> members = memberMapper.selectByExample(memberExample);
+        Member member;
+        if (members != null && members.size() > 0) {
+            // 2. 当前用户已经自动注册登陆过了
+            member = members.get(0);
+            // 更新一下数据库这个用户的access_token和过期时间
+            member.setAccessToken(socialUser.getAccess_token());
+            member.setExpiresIn(socialUser.getExpires_in());
+            memberMapper.updateByPrimaryKeySelective(member);
+
+        } else {
+            // 3. 当前用户没有注册过，我们需要自动注册下
+            member = new Member();
+            try {
+                // 第一次注册该用户，我们通过「根据用户ID获取用户信息」接口来获取一些社交用户的信息，存到数据库
+                // 接口wiki：https://open.weibo.com/wiki/2/users/show
+                Map<String, String> queryParams = new HashMap<>();
+                queryParams.put("access_token", socialUser.getAccess_token());
+                queryParams.put("uid", socialUser.getUid());
+                HttpResponse getResp = HttpUtils.doGet("https://api.weibo.com", "/2/users/show.json", "get", null, queryParams);
+                if (getResp.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+                    // 查询到社交用户的信息
+                    String jsonStr = EntityUtils.toString(getResp.getEntity());
+                    JSONObject jsonObject = JSON.parseObject(jsonStr);
+                    String name = jsonObject.getString("name");
+                    String gender = jsonObject.getString("gender");
+                    member.setNickname(name);
+                    member.setGender((byte) (gender.equals("m") ? 1 : 0));
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            // 4. 插入这个新增的社交用户
+            member.setAccessToken(socialUser.getAccess_token());
+            member.setExpiresIn(socialUser.getExpires_in());
+            member.setSocialUid(socialUser.getUid());
+            memberMapper.insertSelective(member);
+        }
+        MemberTO memberTO = new MemberTO();
+        BeanUtils.copyProperties(member, memberTO);
+        return CommonResponse.success().setData(memberTO);
     }
 
     /**

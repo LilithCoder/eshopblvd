@@ -1,6 +1,7 @@
 package com.hatsukoi.eshopblvd.api.member;
 
 import com.hatsukoi.eshopblvd.to.MemberRegisterTO;
+import com.hatsukoi.eshopblvd.to.SocialUserTO;
 import com.hatsukoi.eshopblvd.to.UserLoginTO;
 
 import java.util.HashMap;
@@ -15,4 +16,6 @@ public interface MemberService {
     public HashMap<String, Object> register(MemberRegisterTO memberRegisterTO);
 
     HashMap<String, Object> login(UserLoginTO userLoginVO);
+
+    HashMap<String, Object> weiboLogin(SocialUserTO socialUser);
 }

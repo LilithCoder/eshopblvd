@@ -4,14 +4,15 @@ import com.hatsukoi.eshopblvd.authserver.exception.*;
 import com.hatsukoi.eshopblvd.authserver.service.AuthService;
 import com.hatsukoi.eshopblvd.authserver.vo.UserLoginVO;
 import com.hatsukoi.eshopblvd.authserver.vo.UserRegisterVO;
+import com.hatsukoi.eshopblvd.constant.DomainConstant;
 import com.hatsukoi.eshopblvd.exception.BizCodeEnum;
-import com.hatsukoi.eshopblvd.to.MemberTO;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import javax.validation.Valid;
 import java.util.HashMap;
@@ -51,7 +52,7 @@ public class AuthController {
      * @return
      */
     @PostMapping("/register")
-    public CommonResponse register(@Valid UserRegisterVO userRegisterVO, BindingResult result) {
+    public CommonResponse register(@Valid UserRegisterVO userRegisterVO, BindingResult result, HttpServletResponse response) {
         Map<String, String> errPrompt;
 
         // 1. 如果提交的注册信息校验出错，直接返回出错信息
@@ -87,7 +88,8 @@ public class AuthController {
             // 返回这些数据校验错误的信息，在注册页上展示
             return CommonResponse.error(BizCodeEnum.USER_EXIST_EXCEPTION.getCode()).setData(errPrompt);
         }
-        // 3. 注册成功，返回后页面跳转到登陆页
+        // 3. 注册成功，返回后页面重定向到登陆页
+        response.addHeader("Location", DomainConstant.LOGIN_PAGE);
         return CommonResponse.success();
     }
 
@@ -98,7 +100,7 @@ public class AuthController {
      * @return
      */
     @PostMapping("/login")
-    public CommonResponse login(UserLoginVO userLoginVO, HttpSession session) {
+    public CommonResponse login(UserLoginVO userLoginVO, HttpSession session, HttpServletResponse response) {
         try {
             // 调用登陆业务
             authService.login(userLoginVO, session);
@@ -109,7 +111,37 @@ public class AuthController {
             // 返回错误信息，在登陆页上展示
             return CommonResponse.error(BizCodeEnum.LOGINACCT_PASSWORD_INVAILD_EXCEPTION.getCode(), BizCodeEnum.LOGINACCT_PASSWORD_INVAILD_EXCEPTION.getMsg());
         }
-        // 登陆成功，返回首页eshopblvd.com
+        // 登陆成功，重定向到首页eshopblvd.com
+        response.addHeader("Location", DomainConstant.HOME_PAGE);
+        return CommonResponse.success();
+    }
+
+    /**
+     * 微博OAuth2社交登陆
+     * 授权成功后回调逻辑
+     * @param code
+     * @param session
+     * @param response
+     * @return
+     */
+    @GetMapping("/oauth2.0/weibo/success")
+    public CommonResponse weiboLogin(@RequestParam("code") String code, HttpSession session, HttpServletResponse response) {
+        try {
+            authService.weiboLogin(code, session, response);
+        } catch (WeiboOAuth2RpcFail e) {
+            // RPC会员服务登陆接口失败，重定向到登陆页
+            response.addHeader("Location", DomainConstant.LOGIN_PAGE);
+            return CommonResponse.error(BizCodeEnum.WEIBO_OAUTH2_RPC_FAIL.getCode(), BizCodeEnum.WEIBO_OAUTH2_RPC_FAIL.getMsg());
+        } catch (WeiboOAuth2AccessFail e) {
+            // 微博访问权限令牌access_token获取失败，重定向到登陆页
+            response.addHeader("Location", DomainConstant.LOGIN_PAGE);
+            return CommonResponse.error(BizCodeEnum.WEIBO_OAUTH2_ACCESS_FAIL.getCode(), BizCodeEnum.WEIBO_OAUTH2_ACCESS_FAIL.getMsg());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return CommonResponse.error();
+        }
+        // 登陆成功，重定向到首页
+        response.addHeader("Location", DomainConstant.HOME_PAGE);
         return CommonResponse.success();
     }
 }
