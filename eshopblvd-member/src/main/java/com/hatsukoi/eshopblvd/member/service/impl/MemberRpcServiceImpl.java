@@ -129,7 +129,7 @@ public class MemberRpcServiceImpl implements MemberService {
                 Map<String, String> queryParams = new HashMap<>();
                 queryParams.put("access_token", socialUser.getAccess_token());
                 queryParams.put("uid", socialUser.getUid());
-                HttpResponse getResp = HttpUtils.doGet("https://api.weibo.com", "/2/users/show.json", "get", null, queryParams);
+                HttpResponse getResp = HttpUtils.doGet("https://api.weibo.com", "/2/users/show.json", "get", new HashMap<>(), queryParams);
                 if (getResp.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
                     // 查询到社交用户的信息
                     String jsonStr = EntityUtils.toString(getResp.getEntity());

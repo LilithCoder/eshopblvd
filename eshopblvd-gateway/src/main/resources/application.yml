@@ -46,7 +46,7 @@ spring:
             - RewritePath=/api/(?<segment>.*),/$\{segment}
 
         - id: auth_route
-          uri: lb://eshopblvd-auth-server
+          uri: lb://eshopblvd-sso-auth
           predicates:
             - Path=/api/auth/**
           filters:
