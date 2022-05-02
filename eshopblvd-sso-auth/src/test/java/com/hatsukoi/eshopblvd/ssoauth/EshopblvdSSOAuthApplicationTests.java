@@ -1,10 +1,10 @@
-package com.hatsukoi.eshopblvd.authserver;
+package com.hatsukoi.eshopblvd.ssoauth;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class EshopblvdAuthServerApplicationTests {
+class EshopblvdSSOAuthApplicationTests {
 
     @Test
     void contextLoads() {
