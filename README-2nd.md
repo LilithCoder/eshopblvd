@@ -192,6 +192,11 @@ http {
    xxx.xxx.xxx.xxx eshopblvd.com
    保存后退出，ping下验证下
    ping eshopblvd.com
+   查询域名指向情况
+   nslookup eshopblvd.com
+   更新DNS缓存
+   sudo dscacheutil -flushcache
+   sudo killall -HUP mDNSResponder
    ```
 
 2. 修改nginx server块的配置：/nginx/conf/conf.d/default.conf
@@ -4038,7 +4043,7 @@ private void checkPhoneUnique(String phone) {
 
 ![](./docs/assets/188.svg)
 
-## 登陆功能
+## 用户密码登陆
 
 ### 新增【接口】登录功能
 
@@ -4101,4 +4106,318 @@ public R login(@RequestBody MemberLoginVo loginVo) {
     }
 ```
 
-### 
+## OAuth2.0社交登陆
+
+### 基本流程
+
+![](./docs/assets/190.png)
+
+![](./docs/assets/191.png)
+
+![](./docs/assets/192.png)
+
+![](./docs/assets/193.png) 
+
+### 微博社交登陆
+
+https://open.weibo.com/
+
+![](./docs/assets/194.png)
+
+![](./docs/assets/195.png)
+![](./docs/assets/196.png)
+![](./docs/assets/197.png)
+![](./docs/assets/198.png)
+![](./docs/assets/199.png)
+
+### 基本逻辑
+
+新增【接口】微博社交登陆成功回调
+
+![](./docs/assets/201.svg)
+
+#### 在登录页引导用户至授权页
+
+```
+GET
+https://api.weibo.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&response_type=code&redirect_uri=YOUR_REGISTERED_REDIRECT_URI
+```
+
+- `client_id`: 创建网站应用时的`app key`
+- `YOUR_REGISTERED_REDIRECT_URI`: 认证完成后的跳转链接(需要和平台高级设置一致)
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-23_12-17-56.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-23_12-17-56.png)
+
+如果用户同意授权，页面跳转至 YOUR_REGISTERED_REDIRECT_URI/?code=CODE
+
+code是我们用来换取令牌的参数
+
+#### (4) 换取token
+
+```
+POST
+https://api.weibo.com/oauth2/access_token?client_id=YOUR_CLIENT_ID&client_secret=YOUR_CLIENT_SECRET&grant_type=authorization_code&redirect_uri=YOUR_REGISTERED_REDIRECT_URI&code=CODE
+```
+
+- `client_id`: 创建网站应用时的`app key`
+- `client_secret`: 创建网站应用时的`app secret`
+- `YOUR_REGISTERED_REDIRECT_URI`: 认证完成后的跳转链接(需要和平台高级设置一致)
+- `code`：换取令牌的认证码
+
+返回数据如下
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-23_12-27-09.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-23_12-27-09.png)
+
+#### (5) 获取用户信息
+
+https://open.weibo.com/wiki/2/users/show
+
+结果返回json
+
+#### (6) 代码编写
+
+**认证接口**
+
+- 通过`HttpUtils`发送请求获取`token`,并将`token`等信息交给`member`服务进行社交登录
+- 若获取`token`失败或远程调用服务失败，则封装错误信息重新转回登录页
+
+```java
+@Controller
+public class OauthController {
+
+    @Autowired
+    private MemberFeignService memberFeignService;
+
+    @RequestMapping("/oauth2.0/weibo/success")
+    public String authorize(String code, RedirectAttributes attributes) throws Exception {
+        //1. 使用code换取token，换取成功则继续2，否则重定向至登录页
+        Map<String, String> query = new HashMap<>();
+        query.put("client_id", "2144***074");
+        query.put("client_secret", "ff63a0d8d5*****29a19492817316ab");
+        query.put("grant_type", "authorization_code");
+        query.put("redirect_uri", "http://auth.gulimall.com/oauth2.0/weibo/success");
+        query.put("code", code);
+        //发送post请求换取token
+        HttpResponse response = HttpUtils.doPost("https://api.weibo.com", "/oauth2/access_token", "post", new HashMap<String, String>(), query, new HashMap<String, String>());
+        Map<String, String> errors = new HashMap<>();
+        if (response.getStatusLine().getStatusCode() == 200) {
+            //2. 调用member远程接口进行oauth登录，登录成功则转发至首页并携带返回用户信息，否则转发至登录页
+            String json = EntityUtils.toString(response.getEntity());
+            SocialUser socialUser = JSON.parseObject(json, new TypeReference<SocialUser>() {
+            });
+            R login = memberFeignService.login(socialUser);
+            //2.1 远程调用成功，返回首页并携带用户信息
+            if (login.getCode() == 0) {
+                String jsonString = JSON.toJSONString(login.get("memberEntity"));
+                MemberResponseVo memberResponseVo = JSON.parseObject(jsonString, new TypeReference<MemberResponseVo>() {
+                });
+                attributes.addFlashAttribute("user", memberResponseVo);
+                return "redirect:http://gulimall.com";
+            }else {
+                //2.2 否则返回登录页
+                errors.put("msg", "登录失败，请重试");
+                attributes.addFlashAttribute("errors", errors);
+                return "redirect:http://auth.gulimall.com/login.html";
+            }
+        }else {
+            errors.put("msg", "获得第三方授权失败，请重试");
+            attributes.addFlashAttribute("errors", errors);
+            return "redirect:http://auth.gulimall.com/login.html";
+        }
+    }
+```
+
+**登录接口**
+
+- 登录包含两种流程，实际上包括了注册和登录
+- 如果之前未使用该社交账号登录，则使用`token`调用开放api获取社交账号相关信息，注册并将结果返回
+- 如果之前已经使用该社交账号登录，则更新`token`并将结果返回
+
+```java
+@RequestMapping("/oauth2/login")
+public R login(@RequestBody SocialUser socialUser) {
+    MemberEntity entity=memberService.login(socialUser);
+    if (entity!=null){
+        return R.ok().put("memberEntity",entity);
+    }else {
+        return R.error();
+    }
+}
+
+ @Override
+    public MemberEntity login(SocialUser socialUser){
+        MemberEntity uid = this.getOne(new QueryWrapper<MemberEntity>().eq("uid", socialUser.getUid()));
+        //1 如果之前未登陆过，则查询其社交信息进行注册
+        if (uid == null) {
+            Map<String, String> query = new HashMap<>();
+            query.put("access_token",socialUser.getAccess_token());
+            query.put("uid", socialUser.getUid());
+            //调用微博api接口获取用户信息
+            String json = null;
+            try {
+                HttpResponse response = HttpUtils.doGet("https://api.weibo.com", "/2/users/show.json", "get", new HashMap<>(), query);
+                json = EntityUtils.toString(response.getEntity());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            JSONObject jsonObject = JSON.parseObject(json);
+            //获得昵称，性别，头像
+            String name = jsonObject.getString("name");
+            String gender = jsonObject.getString("gender");
+            String profile_image_url = jsonObject.getString("profile_image_url");
+            //封装用户信息并保存
+            uid = new MemberEntity();
+            MemberLevelEntity defaultLevel = memberLevelService.getOne(new QueryWrapper<MemberLevelEntity>().eq("default_status", 1));
+            uid.setLevelId(defaultLevel.getId());
+            uid.setNickname(name);
+            uid.setGender("m".equals(gender)?0:1);
+            uid.setHeader(profile_image_url);
+            uid.setAccessToken(socialUser.getAccess_token());
+            uid.setUid(socialUser.getUid());
+            uid.setExpiresIn(socialUser.getExpires_in());
+            this.save(uid);
+        }else {
+            //2 否则更新令牌等信息并返回
+            uid.setAccessToken(socialUser.getAccess_token());
+            uid.setUid(socialUser.getUid());
+            uid.setExpiresIn(socialUser.getExpires_in());
+            this.updateById(uid);
+        }
+        return uid;
+    }
+```
+
+## Session
+
+### session 原理
+
+![](./docs/assets/202.png)
+
+`jsessionid`相当于银行卡，存在服务器的`session`相当于存储的现金，每次通过`jsessionid`取出保存的数据
+
+问题：但是正常情况下`session`不可跨域，它有自己的作用范围
+
+###  分布式下session共享问题
+
+![](./docs/assets/203.png)
+
+#### session复制
+
+![](./docs/assets/204.png)
+
+#### 客户端存储
+
+![](./docs/assets/205.png)
+
+#### hash一致性
+
+![](./docs/assets/206.png)
+
+#### 统一存储
+
+![](./docs/assets/207.png)
+
+![](./docs/assets/209.png)
+
+#### SpringSession整合redis
+
+通过`SpringSession`修改`session`的作用域
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-09-23_20-45-36.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-09-23_20-45-36.png)
+
+##### 1) 环境搭建
+
+导入依赖
+
+```
+    <dependency>
+        <groupId>org.springframework.session</groupId>
+        <artifactId>spring-session-data-redis</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-data-redis</artifactId>
+    </dependency>
+```
+
+修改配置
+
+```
+spring:
+  redis:
+    host: 192.168.56.102
+  session:
+    store-type: redis
+```
+
+添加注解
+
+```
+@EnableRedisHttpSession
+public class GulimallAuthServerApplication {
+```
+
+##### 2) 自定义配置
+
+- 由于默认使用jdk进行序列化，通过导入`RedisSerializer`修改为json序列化
+- 并且通过修改`CookieSerializer`扩大`session`的作用域至`**.gulimall.com`
+
+```
+@Configuration
+public class GulimallSessionConfig {
+
+    @Bean
+    public RedisSerializer<Object> springSessionDefaultRedisSerializer() {
+        return new GenericJackson2JsonRedisSerializer();
+    }
+
+    @Bean
+    public CookieSerializer cookieSerializer() {
+        DefaultCookieSerializer serializer = new DefaultCookieSerializer();
+        serializer.setCookieName("GULISESSIONID");
+        serializer.setDomainName("gulimall.com");
+        return serializer;
+    }
+}
+```
+
+#### SpringSession核心原理 - 装饰者模式
+
+- 原生的获取`session`时是通过`HttpServletRequest`获取的
+- 这里对request进行包装，并且重写了包装request的`getSession()`方法
+
+```
+@Override
+protected void doFilterInternal(HttpServletRequest request,
+      HttpServletResponse response, FilterChain filterChain)
+      throws ServletException, IOException {
+   request.setAttribute(SESSION_REPOSITORY_ATTR, this.sessionRepository);
+
+    //对原生的request、response进行包装
+   SessionRepositoryRequestWrapper wrappedRequest = new SessionRepositoryRequestWrapper(
+         request, response, this.servletContext);
+   SessionRepositoryResponseWrapper wrappedResponse = new SessionRepositoryResponseWrapper(
+         wrappedRequest, response);
+
+   try {
+      filterChain.doFilter(wrappedRequest, wrappedResponse);
+   }
+   finally {
+      wrappedRequest.commitSession();
+   }
+}
+```
+
+## **SSO**(单点登陆)
+
+### 基本介绍
+
+![](./docs/assets/210.png)
+
+![](./docs/assets/211.png)
+
+![](./docs/assets/212.png)
+
+![](./docs/assets/213.png)
+
+![](./docs/assets/214.png)

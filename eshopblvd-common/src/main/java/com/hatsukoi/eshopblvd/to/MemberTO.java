@@ -88,5 +88,19 @@ public class MemberTO implements Serializable {
      * md5盐值
      */
     private Long salt;
+    /**
+     * 社交登陆授权用户的UID
+     */
+    private String socialUid;
+    /**
+     * 微博API访问令牌
+     * 用户授权的唯一票据，用于调用微博的开放接口
+     * 第三方应用应该用该票据和自己应用内的用户建立唯一影射关系，来识别登录状态
+     */
+    private String accessToken;
+    /**
+     * access_token的生命周期，单位是秒数
+     */
+    private String expiresIn;
 
 }
