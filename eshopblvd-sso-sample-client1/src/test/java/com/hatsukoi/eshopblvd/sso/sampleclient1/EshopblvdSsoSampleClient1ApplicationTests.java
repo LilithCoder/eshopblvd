@@ -1,10 +1,10 @@
-package com.hatsukoi.eshopblvd.sso.sampleclient;
+package com.hatsukoi.eshopblvd.sso.sampleclient1;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class EshopblvdSsoSampleClientApplicationTests {
+class EshopblvdSsoSampleClient1ApplicationTests {
 
     @Test
     void contextLoads() {

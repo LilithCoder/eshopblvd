@@ -9,9 +9,9 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.hatsukoi.eshopblvd</groupId>
-    <artifactId>eshopblvd-sso-sample-client</artifactId>
+    <artifactId>eshopblvd-sso-sample-client1</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>eshopblvd-sso-sample-client</name>
+    <name>eshopblvd-sso-sample-client1</name>
     <description>sso单点登录样例client</description>
     <properties>
         <java.version>1.8</java.version>

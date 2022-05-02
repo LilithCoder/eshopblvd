@@ -1,0 +1,10 @@
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 47.103.8.41:8848
+  application:
+    name: eshopblvd-sso-sample-client1
+
+server:
+  port: 20500
