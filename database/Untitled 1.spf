@@ -106,6 +106,100 @@ WHERE
 	<array/>
 	<key>queryHistory</key>
 	<array>
+		<string>SELECT 
+	* 
+FROM 
+	`ums_member`
+WHERE 
+	username='gaoweilin'
+	OR 
+	mobile='gaoweilin'</string>
+		<string>SELECT 
+	* 
+FROM 
+	`ums_member`
+WHERE 
+	username = `gaoweilin` 
+	OR 
+	mobile = `gaoweilin`</string>
+		<string>SELECT 
+	* 
+FROM 
+	`ums_member`
+WHERE 
+	username = `gaoweilin` 
+	OR 
+	mobile=`gaoweilin`</string>
+		<string>SELECT 
+	* 
+FROM 
+	`ums_member`
+WHERE 
+	username=`1221` 
+	OR 
+	mobile=`gaoweilin`</string>
+		<string>SELECT 
+	* 
+FROM 
+	`ums_member`
+WHERE 
+	username=`gaoweilin` 
+	OR 
+	mobile=`gaoweilin`</string>
+		<string>SELECT 
+	* 
+FROM 
+	`ums_member`
+WHERE 
+	username=`gaoweilin` OR mobile=`gaoweilin`</string>
+		<string>gaoweilin</string>
+		<string>SELECT 
+	* 
+FROM 
+	`ums_member`
+WHERE 
+	username=gaoweilin OR mobile=gaoweilin</string>
+		<string>SELECT 
+	* 
+FROM 
+	`ums_member`
+WHERE 
+	user_name=gaoweilin OR mobile=gaoweilin</string>
+		<string>SELECT
+	id
+FROM
+	`ums_member_level`
+WHERE
+	default_status=1</string>
+		<string>SELECT
+	pag.`attr_group_name` group_name,
+	paar.`attr_id` attr_id,
+	ppaa.`attr_name` attr_name,
+	ppaa.`attr_value` attr_value
+FROM
+	`pms_attr_group` pag 
+	LEFT JOIN `pms_attr_attrgroup_relation` paar ON pag.`attr_group_id` = paar.`attr_group_id`
+	LEFT JOIN `pms_product_attr_value` ppaa ON ppaa.`attr_id` = paar.`attr_id`
+WHERE
+	pag.`catelog_id`=225 and ppaa.`spu_id`=0</string>
+		<string>SELECT
+	*FROM
+	`pms_attr_group` pag 
+	LEFT JOIN `pms_attr_attrgroup_relation` paar ON pag.`attr_group_id` = paar.`attr_group_id`
+	LEFT JOIN `pms_product_attr_value` ppaa ON ppaa.`attr_id` = paar.`attr_id`
+WHERE
+	pag.`catelog_id`=225 and ppaa.`spu_id`=0</string>
+		<string>SELECT
+	pag.`attr_group_name` group_name,
+	paar.`attr_id` attr_id
+	ppaa.`attr_name` attr_name,
+	ppaa.`attr_value` attr_value
+FROM
+	`pms_attr_group` pag 
+	LEFT JOIN `pms_attr_attrgroup_relation` paar ON pag.`attr_group_id` = paar.`attr_group_id`
+	LEFT JOIN `pms_product_attr_value` ppaa ON ppaa.`attr_id` = paar.`attr_id`
+WHERE
+	pag.`catelog_id`=225 and ppaa.`spu_id`=0</string>
 		<string>SELECT
 	*
 FROM
@@ -153,150 +247,6 @@ WHERE
 FROM
 	`pms_attr_group` pag 
 	LEFT JOIN `pms_attr_attrgroup_relation` paar ON pag.`attr_group_id` = paar.`attr_group_id`</string>
-		<string>SELECT
-	*
-FROM
-	`pms_attr_group`</string>
-		<string>SELECT 
-	pssav.`attr_id` attr_id,
-	pssav.`attr_name` attr_name,
-	pssav.`attr_value` attr_value,
-	GROUP_CONCAT(DISTINCT psi.`sku_id`) sku_ids
-FROM 
-	`pms_sku_info` psi LEFT JOIN 
-	`pms_sku_sale_attr_value` pssav ON
-	psi.`sku_id`=pssav.`sku_id`
-WHERE
-	psi.`spu_id`=0
-GROUP BY
-	pssav.`attr_id`,
-	pssav.`attr_name`,
-	pssav.`attr_value`</string>
-		<string>SELECT 
-	pssav.`attr_id` attr_id,
-	pssav.`attr_name` attr_name,
-	pssav.`attr_value` attr_value,
-	GROUP_CONCAT(DISTINCT psi.`sku_id`) sku_ids
-FROM 
-	`pms_sku_info` psi LEFT JOIN 
-	`pms_sku_sale_attr_value` pssav ON
-	psi.`sku_id`=pssav.`sku_id`
-WHERE
-	psi.`spu_id`=0
-GROUP BY
-	pssav.`attr_id`,
-	pssav.`attr_name`,
-pssav.`attr_value`</string>
-		<string>SELECT 
-	pssav.`attr_id` attr_id,
-	pssav.`attr_name` attr_name,
-	pssav.`attr_value` attr_value
-FROM 
-	`pms_sku_info` psi LEFT JOIN 
-	`pms_sku_sale_attr_value` pssav ON
-	psi.`sku_id`=pssav.`sku_id`
-WHERE
-	psi.`spu_id`=0</string>
-		<string>SELECT 
-	pssav.`attr_id` attr_id,
-	pssav.`attr_name` attr_name,
-	pssav.`attr_value` attr_value,
-	GROUP_CONCAT(DISTINCT psi.`sku_id`) sku_ids
-FROM 
-	`pms_sku_info` psi LEFT JOIN 
-	`pms_sku_sale_attr_value` pssav ON
-	psi.`sku_id`=pssav.`sku_id`
-WHERE
-	psi.`spu_id`=0</string>
-		<string>SELECT 
-	pssav.`attr_id` attr_id,
-	pssav.`attr_name` attr_name,
-	pssav.`attr_value` attr_value
-FROM 
-	`pms_sku_info` psi LEFT JOIN 
-	`pms_sku_sale_attr_value` pssav ON
-	psi.`sku_id`=pssav.`sku_id`
-WHERE
-	psi.`spu_id`=0
-GROUP BY
-	pssav.`attr_id`,
-	pssav.`attr_name`,
-	pssav.`attr_value`</string>
-		<string>SELECT 
-	pssav.`attr_id` attr_id,
-	pssav.`attr_name` attr_name,
-	pssav.`attr_value` attr_value,
-	GROUP_CONCAT(DISTINCT psi.`sku_id`) sku_id
-FROM 
-	`pms_sku_info` psi LEFT JOIN 
-	`pms_sku_sale_attr_value` pssav ON
-	psi.`sku_id`=pssav.`sku_id`
-WHERE
-	psi.`spu_id`=0
-GROUP BY
-	pssav.`attr_id`,
-	pssav.`attr_name`,
-	pssav.`attr_value`</string>
-		<string>GROUP_CONCAT(DISTINCT</string>
-		<string>SELECT 
-	*
-FROM 
-	`pms_sku_info` psi LEFT JOIN 
-	`pms_sku_sale_attr_value` pssav ON
-	psi.`sku_id`=pssav.`sku_id`
-WHERE
-	psi.`spu_id`=0
-GROUP BY
-	pssav.`attr_id`,
-	pssav.`attr_name`,
-	pssav.`attr_value`</string>
-		<string>SELECT 
-	pssav.`attr_id` attr_id,
-	pssav.`attr_name` attr_name,
-	pssav.`attr_value` attr_value,
-	psi.`sku_id` sku_id
-FROM 
-	`pms_sku_info` psi LEFT JOIN 
-	`pms_sku_sale_attr_value` pssav ON
-	psi.`sku_id`=pssav.`sku_id`
-WHERE
-	psi.`spu_id`=0
-GROUP BY
-	pssav.`attr_id`,
-	pssav.`attr_name`,
-	pssav.`attr_value`</string>
-		<string>DISTINCT</string>
-		<string>SELECT 
-	pssav.`attr_id` attr_id,
-	pssav.`attr_name` attr_name,
-	pssav.`attr_value` attr_value,
-	GROUP_CONCAT( psi.`sku_id`) sku_id
-FROM 
-	`pms_sku_info` psi LEFT JOIN 
-	`pms_sku_sale_attr_value` pssav ON
-	psi.`sku_id`=pssav.`sku_id`
-WHERE
-	psi.`spu_id`=0
-GROUP BY
-	pssav.`attr_id`,
-	pssav.`attr_name`,
-	pssav.`attr_value`</string>
-		<string>SELECT 
-	pssav.`attr_id` attr_id,
-	pssav.`attr_name` attr_name,
-	pssav.`attr_value` attr_value,
-	GROUP_CONCAT(DISTINCT psi.`sku_id`) sku_id
-FROM 
-	`pms_sku_info` psi LEFT JOIN 
-	`pms_sku_sale_attr_value` pssav ON
-	psi.`sku_id`=pssav.`sku_id`
-WHERE
-	psi.`spu_id`=0
-GROUP BY
-	pssav.`attr_id`,
-	pssav.`attr_name`,
-	pssav.`attr_value`,
-	psi.`sku_id`</string>
 	</array>
 	<key>rdbms_type</key>
 	<string>mysql</string>

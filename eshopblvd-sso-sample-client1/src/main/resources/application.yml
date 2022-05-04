@@ -8,3 +8,23 @@ spring:
 
 server:
   port: 20500
+
+sso:
+  auth:
+    host: http://ssoauth.eshopblvd.com:20000
+    path: /login
+  client:
+    url: http://client1.eshopblvd.com:20500
+
+dubbo:
+  application:
+    name: eshopblvd-sso-sample-client1-dubbo
+  registry:
+    address: nacos://47.103.8.41:8848
+  monitor:
+    protocol: registry
+  protocol:
+    port: 20887
+  consumer:
+    timeout: 60000
+    retries: 3

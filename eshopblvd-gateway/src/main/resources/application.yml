@@ -62,10 +62,10 @@ spring:
 #          predicates:
 #            - Host=search.eshopblvd.com
 #
-#        - id: eshopblvd_auth_route
-#          uri: lb://eshopblvd-auth-server
-#          predicates:
-#            - Host=auth.eshopblvd.com
+        - id: eshopblvd_ssoauth_route
+          uri: lb://eshopblvd-sso-auth
+          predicates:
+            - Host=ssoauth.eshopblvd.com
 
 
   application:

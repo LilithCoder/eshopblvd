@@ -4421,3 +4421,20 @@ protected void doFilterInternal(HttpServletRequest request,
 ![](./docs/assets/213.png)
 
 ![](./docs/assets/214.png)
+
+### 流程
+
+![](./docs/assets/215.png)
+
+### 好文档摘录
+
+[单点登录（SSO）看这一篇就够了](https://developer.aliyun.com/article/636281)
+
+https://www.cnblogs.com/zzdbullet/p/11136589.html
+
+https://www.cnblogs.com/Eleven-Liu/p/10336181.html
+
+### aop的运用
+
+接入sso的client系统可将复用的逻辑抽取为filter获取aop增强逻辑
+

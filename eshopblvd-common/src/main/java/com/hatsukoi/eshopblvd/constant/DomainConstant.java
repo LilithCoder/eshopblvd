@@ -7,4 +7,5 @@ package com.hatsukoi.eshopblvd.constant;
 public class DomainConstant {
     public static final String HOME_PAGE = "http://eshopblvd.com";
     public static final String LOGIN_PAGE = "http://ssoauth.eshopblvd.com/login";
+    public static final String CASTGC = "CASTGC";
 }

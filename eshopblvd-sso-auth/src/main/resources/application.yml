@@ -8,6 +8,10 @@ spring:
   redis:
     host: 47.103.8.41
     port: 6379
+  session:
+    store-type: redis
+  thymeleaf:
+    cache: false
 
 server:
   port: 20000
@@ -20,7 +24,7 @@ dubbo:
   monitor:
     protocol: registry
   protocol:
-    port: 20885
+    port: 20886
   consumer:
     timeout: 60000
     retries: 3
