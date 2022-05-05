@@ -52,6 +52,13 @@ spring:
           filters:
             - RewritePath=/api/(?<segment>.*),/$\{segment}
 
+        - id: cart_route
+          uri: lb://eshopblvd-cart
+          predicates:
+            - Path=/api/cart/**
+          filters:
+            - RewritePath=/api/(?<segment>.*),/$\{segment}
+
 #        - id: eshopblvd_host_route
 #          uri: lb://eshopblvd-product
 #          predicates:
@@ -62,10 +69,10 @@ spring:
 #          predicates:
 #            - Host=search.eshopblvd.com
 #
-#        - id: eshopblvd_auth_route
-#          uri: lb://eshopblvd-auth-server
-#          predicates:
-#            - Host=auth.eshopblvd.com
+        - id: eshopblvd_ssoauth_route
+          uri: lb://eshopblvd-sso-auth
+          predicates:
+            - Host=ssoauth.eshopblvd.com
 
 
   application:

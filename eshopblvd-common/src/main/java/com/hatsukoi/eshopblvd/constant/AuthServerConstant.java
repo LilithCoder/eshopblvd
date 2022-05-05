@@ -17,4 +17,8 @@ public class AuthServerConstant {
      * 登陆成功后用户信息放入session对应的字段key
      */
     public static final String LOGIN_USER = "loginUser";
+    /**
+     * session过期时间 （30天）
+     */
+    public static final int SESSION_MAX_INACTIVE_INTERVAL = 60*60*24*30;
 }

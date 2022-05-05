@@ -20,5 +20,7 @@
         <module>eshopblvd-ware</module>
         <module>eshopblvd-admin</module>
         <module>eshopblvd-mbg</module>
+        <module>eshopblvd-sso-auth</module>
+        <module>eshopblvd-sso-sample-client1</module>
     </modules>
 </project>

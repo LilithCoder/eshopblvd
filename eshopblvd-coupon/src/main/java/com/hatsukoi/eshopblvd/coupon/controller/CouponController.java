@@ -10,6 +10,6 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RefreshScope
 @RestController
-@RequestMapping("/coupon")
+@RequestMapping("coupon")
 public class CouponController {
 }

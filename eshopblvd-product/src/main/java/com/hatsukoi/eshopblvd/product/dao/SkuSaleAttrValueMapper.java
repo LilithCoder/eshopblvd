@@ -100,4 +100,6 @@ public interface SkuSaleAttrValueMapper {
     void batchInsert(@Param("attrValues") List<SkuSaleAttrValue> skuSaleAttrValues);
 
     List<SpuSaleAttrPO> getSaleAttrsBySpuId(@Param("spuId") Long spuId);
+
+    List<String> getSaleAttrsWithValueBySkuId(@Param("skuId") Long skuId);
 }

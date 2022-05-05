@@ -235,6 +235,14 @@
       pssav.`attr_name`,
       pssav.`attr_value`
   </select>
+  <select id="getSaleAttrsWithValueBySkuId" resultType="java.lang.String">
+    SELECT
+      CONCAT(attr_name, ": ", attr_value)
+    FROM
+      `pms_sku_sale_attr_value`
+    WHERE
+      sku_id=#{skuId}
+  </select>
   <update id="updateByExampleSelective" parameterType="map">
     <!--
       WARNING - @mbg.generated

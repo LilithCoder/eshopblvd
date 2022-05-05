@@ -132,6 +132,7 @@ public class AuthServiceImpl implements AuthService {
             MemberTO data = commonResponse.getData(new TypeReference<MemberTO>() {
             });
             session.setAttribute(AuthServerConstant.LOGIN_USER, data);
+            session.setMaxInactiveInterval(AuthServerConstant.SESSION_MAX_INACTIVE_INTERVAL);
         } else if (commonResponse.getCode() == BizCodeEnum.LOGINACCT_NONEXIST_EXCEPTION.getCode()) {
             throw new LoginAcctNonExistException();
         } else if (commonResponse.getCode() == BizCodeEnum.LOGINACCT_PASSWORD_INVAILD_EXCEPTION.getCode()) {
