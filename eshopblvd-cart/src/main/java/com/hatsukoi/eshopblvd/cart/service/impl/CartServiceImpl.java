@@ -130,6 +130,34 @@ public class CartServiceImpl implements CartService {
         return cart;
     }
 
+    @Override
+    public void checkCartItem(Long skuId, Boolean checked) {
+        BoundHashOperations<String, Object, Object> cartOp = getCartOp();
+        // 获取目标购物项
+        String jsonStr = (String) cartOp.get(skuId.toString());
+        CartItemVO cartItem = JSON.parseObject(jsonStr, CartItemVO.class);
+        // 改变其选中状态，更新redis
+        cartItem.setCheck(checked);
+        cartOp.put(skuId.toString(), JSON.toJSONString(cartItem));
+    }
+
+    @Override
+    public void changeItemCount(Long skuId, Integer num) {
+        BoundHashOperations<String, Object, Object> cartOp = getCartOp();
+        // 获取目标购物项
+        String jsonStr = (String) cartOp.get(skuId.toString());
+        CartItemVO cartItem = JSON.parseObject(jsonStr, CartItemVO.class);
+        // 改变其选中状态，更新redis
+        cartItem.setCount(num);
+        cartOp.put(skuId.toString(), JSON.toJSONString(cartItem));
+    }
+
+    @Override
+    public void deleteItem(Long skuId) {
+        BoundHashOperations<String, Object, Object> cartOp = getCartOp();
+        cartOp.delete(skuId.toString());
+    }
+
     /**
      * 获取当前要操作购物车的redis操作
      * 优先获取操作在线购物车，没有用户登陆了才获取操作离线购物车

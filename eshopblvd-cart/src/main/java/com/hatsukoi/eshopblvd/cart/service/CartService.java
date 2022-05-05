@@ -13,4 +13,10 @@ public interface CartService {
     CartItemVO addToCart(Long skuId, Integer num) throws ExecutionException, InterruptedException;
 
     CartVO getCart() throws ExecutionException, InterruptedException;
+
+    void checkCartItem(Long skuId, Boolean checked);
+
+    void changeItemCount(Long skuId, Integer num);
+
+    void deleteItem(Long skuId);
 }

@@ -369,6 +369,8 @@ public class CartInterceptor implements HandlerInterceptor {
 
 ## 新增【接口】获取整个购物车
 
+![](./docs/assets/224.svg)
+
 ```java
    /**
      * 获取当前购物车（在线/离线）
@@ -409,3 +411,72 @@ public class CartInterceptor implements HandlerInterceptor {
     }
 ```
 
+## 新增【接口】切换购物项的选中态
+
+```java
+ @Override
+    public void checkCartItem(Long skuId, Boolean checked) {
+        BoundHashOperations<String, Object, Object> cartOp = getCartOp();
+        // 获取目标购物项
+        String jsonStr = (String) cartOp.get(skuId.toString());
+        CartItemVO cartItem = JSON.parseObject(jsonStr, CartItemVO.class);
+        // 改变其选中状态，更新redis
+        cartItem.setCheck(checked);
+        cartOp.put(skuId.toString(), JSON.toJSONString(cartItem));
+    }
+```
+
+## 新增【接口】选中购物车项
+
+```java
+@RequestMapping("/checkCart")
+public String checkCart(@RequestParam("isChecked") Integer isChecked,@RequestParam("skuId")Long skuId) {
+    cartService.checkCart(skuId, isChecked);
+    return "redirect:http://cart.gulimall.com/cart.html";
+}
+
+//修改skuId对应购物车项的选中状态
+@Override
+public void checkCart(Long skuId, Integer isChecked) {
+    BoundHashOperations<String, Object, Object> ops = getCartItemOps();
+    String cartJson = (String) ops.get(skuId.toString());
+    CartItemVo cartItemVo = JSON.parseObject(cartJson, CartItemVo.class);
+    cartItemVo.setCheck(isChecked==1);
+    ops.put(skuId.toString(),JSON.toJSONString(cartItemVo));
+}
+```
+
+## 新增【接口】修改购物项数量
+
+```java
+@RequestMapping("/countItem")
+public String changeItemCount(@RequestParam("skuId") Long skuId, @RequestParam("num") Integer num) {
+    cartService.changeItemCount(skuId, num);
+    return "redirect:http://cart.gulimall.com/cart.html";
+}
+
+@Override
+public void changeItemCount(Long skuId, Integer num) {
+    BoundHashOperations<String, Object, Object> ops = getCartItemOps();
+    String cartJson = (String) ops.get(skuId.toString());
+    CartItemVo cartItemVo = JSON.parseObject(cartJson, CartItemVo.class);
+    cartItemVo.setCount(num);
+    ops.put(skuId.toString(),JSON.toJSONString(cartItemVo));
+}
+```
+
+## 新增【接口】删除购物车项
+
+```java
+@RequestMapping("/deleteItem")
+public String deleteItem(@RequestParam("skuId") Long skuId) {
+    cartService.deleteItem(skuId);
+    return "redirect:http://cart.gulimall.com/cart.html";
+}
+
+@Override
+public void deleteItem(Long skuId) {
+    BoundHashOperations<String, Object, Object> ops = getCartItemOps();
+    ops.delete(skuId.toString());
+}
+```
