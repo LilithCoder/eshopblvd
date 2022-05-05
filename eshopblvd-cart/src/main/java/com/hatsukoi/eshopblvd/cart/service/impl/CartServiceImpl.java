@@ -8,6 +8,7 @@ import com.hatsukoi.eshopblvd.cart.interceptor.CartInterceptor;
 import com.hatsukoi.eshopblvd.cart.service.CartService;
 import com.hatsukoi.eshopblvd.cart.to.UserInfoTO;
 import com.hatsukoi.eshopblvd.cart.vo.CartItemVO;
+import com.hatsukoi.eshopblvd.cart.vo.CartVO;
 import com.hatsukoi.eshopblvd.to.SkuInfoTO;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import org.apache.commons.lang.StringUtils;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.stream.Collectors;
 
 /**
  * @author gaoweilin
@@ -39,6 +41,7 @@ public class CartServiceImpl implements CartService {
 
     /**
      * 商品sku加入购物车
+     * 优先加入用户购物车
      * @param skuId
      * @param num
      * @return
@@ -90,6 +93,44 @@ public class CartServiceImpl implements CartService {
     }
 
     /**
+     * 获取当前购物车（在线/离线）
+     * @return
+     */
+    @Override
+    public CartVO getCart() throws ExecutionException, InterruptedException {
+        CartVO cart = new CartVO();
+        UserInfoTO userInfoTO = CartInterceptor.threadLocal.get();
+        if (userInfoTO.getUserId() != null) {
+            // 1. 有用户登录了，就将合并临时购物车（如果有），然后删除临时购物车
+            // 用户购物车key
+            String userCartKey = CartConstant.CART_PREFIX + userInfoTO.getUserId();
+            // 临时购物车key
+            String tempCartKey = CartConstant.CART_PREFIX + userInfoTO.getUserKey();
+            // 获取临时购物车
+            List<CartItemVO> tempCartItems = getCartItems(tempCartKey);
+            if (tempCartItems != null) {
+                // 临时购物车有数据，需要合并
+                for (CartItemVO item: tempCartItems) {
+                    // 优先加入用户购物车，目前有用户登陆，所以肯定加进用户购物车了
+                    addToCart(item.getSkuId(), item.getCount());
+                }
+                // 删掉临时购物车
+                redisTemplate.delete(tempCartKey);
+            }
+            // 最后获取用户购物车的所有购物项
+            List<CartItemVO> cartItems = getCartItems(userCartKey);
+            cart.setItems(cartItems);
+        } else {
+            // 2. 没有用户登陆
+            // 直接获取临时购物车就好
+            String tempCartKey = CartConstant.CART_PREFIX + userInfoTO.getUserKey();
+            List<CartItemVO> cartItems = getCartItems(tempCartKey);
+            cart.setItems(cartItems);
+        }
+        return cart;
+    }
+
+    /**
      * 获取当前要操作购物车的redis操作
      * 优先获取操作在线购物车，没有用户登陆了才获取操作离线购物车
      */
@@ -105,5 +146,23 @@ public class CartServiceImpl implements CartService {
         }
         BoundHashOperations<String, Object, Object> operations = redisTemplate.boundHashOps(cartKey);
         return operations;
+    }
+
+    /**
+     * 获取某位用户购物车全部的购物项
+     * @return
+     */
+    private List<CartItemVO> getCartItems(String cartKey) {
+        BoundHashOperations<String, Object, Object> operations = redisTemplate.boundHashOps(cartKey);
+        // 获取这个购物车所有购物项的json字符串
+        List<Object> values = operations.values();
+        if (values != null && values.size() > 0) {
+            List<CartItemVO> collect = values.stream().map((item) -> {
+                CartItemVO cartItem = JSON.parseObject((String) item, CartItemVO.class);
+                return cartItem;
+            }).collect(Collectors.toList());
+            return collect;
+        }
+        return null;
     }
 }

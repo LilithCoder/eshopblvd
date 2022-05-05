@@ -194,7 +194,96 @@ Redis 有 5 种不同数据结构，这里选择哪一种比较合适呢?Map<Str
 - 在调用购物车的接口前，先通过session信息判断是否登录，并分别进行用户身份信息的封装，并把`user-key`放在cookie中
 - 这个功能使用拦截器进行完成
 
+```java
+/**
+ * 请求拦截器
+ * 在执行目标方法之前，判断用户的登录状态。并封装传递(用户信息)给controller
+ * @author gaoweilin
+ * @date 2022/05/05 Thu 3:10 AM
+ */
+public class CartInterceptor implements HandlerInterceptor {
+    /**
+     * 整条调用链条线程的local变量存入拦截器已经封装好的用户信息
+     */
+    public static ThreadLocal<UserInfoTO> threadLocal = new ThreadLocal<>();
+
+    /**
+     * 业务执行前逻辑
+     * @param request
+     * @param response
+     * @param handler
+     * @return
+     * @throws Exception
+     */
+    @Override
+    public boolean preHandle(HttpServletRequest request,
+                             HttpServletResponse response,
+                             Object handler) throws Exception {
+        // 1. 在请求前拦截，封装用户信息（无论登录与否）
+        UserInfoTO userInfoTO = new UserInfoTO();
+        HttpSession session = request.getSession();
+        Object memberTO = session.getAttribute(AuthServerConstant.LOGIN_USER);
+        if (memberTO != null) {
+            // 用户登陆了
+            MemberTO loginUser = JSON.parseObject(JSON.toJSONString(memberTO), MemberTO.class);
+            userInfoTO.setUserId(loginUser.getId());
+        }
+
+        // 2. 检查cookies里有没有临时用户userKey
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null && cookies.length > 0) {
+            for (Cookie cookie: cookies) {
+                if (cookie.getName().equals(CartConstant.TEMP_USER_COOKIE_NAME)) {
+                    userInfoTO.setUserKey(cookie.getValue());
+                    // 只要已经有临时用户userkey了，tempUser字段就设置为true，这是为了临时用户userKey不要一直被持续更新
+                    userInfoTO.setTempUser(true);
+                }
+            }
+        }
+
+        // 3. 无论有没有用户登录，都分配一个临时用户userKey
+        if (StringUtils.isEmpty(userInfoTO.getUserKey())) {
+            String userKey = UUID.randomUUID().toString();
+            userInfoTO.setUserKey(userKey);
+        }
+
+        // 4. 将封装的用户信息放入threadlocal
+        threadLocal.set(userInfoTO);
+        return true;
+    }
+
+    /**
+     * 业务执行后逻辑
+     * @param request
+     * @param response
+     * @param handler
+     * @param modelAndView
+     * @throws Exception
+     */
+    @Override
+    public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler, ModelAndView modelAndView) throws Exception {
+        UserInfoTO userInfoTO = threadLocal.get();
+        // 如果这是第一次分配临时用户，将分配的userkey写入cookie，过期时间为30天
+        if (!userInfoTO.isTempUser()) {
+            Cookie cookie = new Cookie(CartConstant.TEMP_USER_COOKIE_NAME, userInfoTO.getUserKey());
+            cookie.setDomain(DomainConstant.COOKIE_DOMAIN);
+            cookie.setDomain(DomainConstant.COOKIE_DOMAIN);
+            cookie.setMaxAge(CartConstant.TEMP_USER_COOKIE_TIMEOUT);
+            response.addCookie(cookie);
+        }
+    }
+}
+
 ```
+
+```
+浏览器有一个cookie；user-key；标识用户身份，一个月后过期；
+* 如果第一次使用jd的购物车功能，都会给一个临时的用户身份；
+* 浏览器以后保存，每次访问都会带上这个cookie；
+*
+* 登录：session有
+* 没登录：按照cookie里面带来user-key来做。
+* 第一次：如果没有临时用户，帮忙创建一个临时用户。
 ```
 
 ## 新增【接口】添加商品到购物车
@@ -202,3 +291,121 @@ Redis 有 5 种不同数据结构，这里选择哪一种比较合适呢?Map<Str
 ### 接口逻辑
 
 ![](./docs/assets/223.svg)
+
+- 若当前商品已经存在购物车，只需增添数量
+- 否则需要查询商品购物项所需信息，并添加新商品至购物车
+
+```java
+/**
+     * 商品sku加入购物车
+     * @param skuId
+     * @param num
+     * @return
+     */
+    @Override
+    public CartItemVO addToCart(Long skuId, Integer num) throws ExecutionException, InterruptedException {
+        // 1. 根据userId来获取用户购物车，或者根据userKey获取离线购物车
+        BoundHashOperations<String, Object, Object> cartOp = getCartOp();
+
+        // 2. 获取到购物车后，查找购物车中有没有skuId对应的商品，购物车的数据结构为hash，key为skuId
+        String jsonStr = (String) cartOp.get(skuId.toString());
+        if (StringUtils.isEmpty(jsonStr)) {
+            // 2.1 如果没有，异步查询sku的需要相关信息，存入redis
+            CartItemVO cartItem = new CartItemVO();
+
+            // 2.1.1 RPC调用商品服务查询skuInfo基本信息
+            CompletableFuture<Void> getSkuInfoTask = CompletableFuture.runAsync(() -> {
+                CommonResponse resp = CommonResponse.convertToResp(productRpcService.getSkuInfo(skuId));
+                SkuInfoTO data = resp.getData(new TypeReference<SkuInfoTO>() {
+                });
+                cartItem.setSkuId(data.getSkuId());
+                cartItem.setCheck(true);
+                cartItem.setTitle(data.getSkuTitle());
+                cartItem.setImage(data.getSkuDefaultImg());
+                cartItem.setPrice(data.getPrice());
+                cartItem.setCount(num);
+            }, executor);
+
+            // 2.1.2 RPC调用商品服务查询sku的销售属性
+            CompletableFuture<Void> getSkuSaleAttrsWithValueTask = CompletableFuture.runAsync(() -> {
+                CommonResponse resp = CommonResponse.convertToResp(productRpcService.getSkuSaleAttrsWithValue(skuId));
+                List<String> data = resp.getData(new TypeReference<List<String>>() {
+                });
+                cartItem.setSkuAttr(data);
+            }, executor);
+
+            // 2.1.3 等异步操作都结束后将购物车项放入redis
+            CompletableFuture.allOf(getSkuInfoTask, getSkuSaleAttrsWithValueTask).get();
+            cartOp.put(skuId.toString(), JSON.toJSONString(cartItem));
+
+            return cartItem;
+        } else {
+            // 2.2 如果有，将查找到的这项商品购物车项中数量累加一下，继续放入redis中
+            CartItemVO cartItem = JSON.parseObject(jsonStr, CartItemVO.class);
+            cartItem.setCount(cartItem.getCount() + num);
+            cartOp.put(skuId.toString(), JSON.toJSONString(cartItem));
+            return cartItem;
+        }
+    }
+
+    /**
+     * 获取当前要操作购物车的redis操作
+     * 优先获取操作在线购物车，没有用户登陆了才获取操作离线购物车
+     */
+    private BoundHashOperations<String, Object, Object> getCartOp() {
+        UserInfoTO userInfoTO = CartInterceptor.threadLocal.get();
+        String cartKey = "";
+        if (userInfoTO.getUserId() != null) {
+            // 有用户登陆, 要获取在线购物车，key为eshopblvd:cart:{userId}
+            cartKey = CartConstant.CART_PREFIX + userInfoTO.getUserId();
+        } else {
+            // 有用户登陆, 要获取离线购物车，key为eshopblvd:cart:{userKey}
+            cartKey = CartConstant.CART_PREFIX + userInfoTO.getUserKey();
+        }
+        BoundHashOperations<String, Object, Object> operations = redisTemplate.boundHashOps(cartKey);
+        return operations;
+    }
+```
+
+## 新增【接口】获取整个购物车
+
+```java
+   /**
+     * 获取当前购物车（在线/离线）
+     * @return
+     */
+    @Override
+    public CartVO getCart() throws ExecutionException, InterruptedException {
+        CartVO cart = new CartVO();
+        UserInfoTO userInfoTO = CartInterceptor.threadLocal.get();
+        if (userInfoTO.getUserId() != null) {
+            // 1. 有用户登录了，就将合并临时购物车（如果有），然后删除临时购物车
+            // 用户购物车key
+            String userCartKey = CartConstant.CART_PREFIX + userInfoTO.getUserId();
+            // 临时购物车key
+            String tempCartKey = CartConstant.CART_PREFIX + userInfoTO.getUserKey();
+            // 获取临时购物车
+            List<CartItemVO> tempCartItems = getCartItems(tempCartKey);
+            if (tempCartItems != null) {
+                // 临时购物车有数据，需要合并
+                for (CartItemVO item: tempCartItems) {
+                    // 优先加入用户购物车，目前有用户登陆，所以肯定加进用户购物车了
+                    addToCart(item.getSkuId(), item.getCount());
+                }
+                // 删掉临时购物车
+                redisTemplate.delete(tempCartKey);
+            }
+            // 最后获取用户购物车的所有购物项
+            List<CartItemVO> cartItems = getCartItems(userCartKey);
+            cart.setItems(cartItems);
+        } else {
+            // 2. 没有用户登陆
+            // 直接获取临时购物车就好
+            String tempCartKey = CartConstant.CART_PREFIX + userInfoTO.getUserKey();
+            List<CartItemVO> cartItems = getCartItems(tempCartKey);
+            cart.setItems(cartItems);
+        }
+        return cart;
+    }
+```
+

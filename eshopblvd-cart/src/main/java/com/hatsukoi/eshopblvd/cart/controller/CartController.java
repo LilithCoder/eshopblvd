@@ -2,6 +2,7 @@ package com.hatsukoi.eshopblvd.cart.controller;
 
 import com.hatsukoi.eshopblvd.cart.service.CartService;
 import com.hatsukoi.eshopblvd.cart.vo.CartItemVO;
+import com.hatsukoi.eshopblvd.cart.vo.CartVO;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,5 +34,11 @@ public class CartController {
                                     @RequestParam("num") Integer num) throws ExecutionException, InterruptedException {
         CartItemVO item = cartService.addToCart(skuId, num);
         return CommonResponse.success().setData(item);
+    }
+
+    @GetMapping("/getCart")
+    public CommonResponse getCart() throws ExecutionException, InterruptedException {
+        CartVO cart = cartService.getCart();
+        return CommonResponse.success().setData(cart);
     }
 }

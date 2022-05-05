@@ -1,6 +1,7 @@
 package com.hatsukoi.eshopblvd.cart.service;
 
 import com.hatsukoi.eshopblvd.cart.vo.CartItemVO;
+import com.hatsukoi.eshopblvd.cart.vo.CartVO;
 
 import java.util.concurrent.ExecutionException;
 
@@ -10,4 +11,6 @@ import java.util.concurrent.ExecutionException;
  */
 public interface CartService {
     CartItemVO addToCart(Long skuId, Integer num) throws ExecutionException, InterruptedException;
+
+    CartVO getCart() throws ExecutionException, InterruptedException;
 }
