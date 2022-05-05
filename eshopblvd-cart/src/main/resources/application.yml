@@ -4,30 +4,29 @@ spring:
       discovery:
         server-addr: 47.103.8.41:8848
   application:
-    name: eshopblvd-sso-auth
+    name: eshopblvd-cart
   redis:
     host: 47.103.8.41
     port: 6379
-  session:
-    store-type: redis
-  thymeleaf:
-    cache: false
 
 server:
-  port: 20000
-  servlet:
-    session:
-      timeout: 300m
+  port: 30000
 
 dubbo:
   application:
-    name: eshopblvd-sso-auth-dubbo
+    name: eshopblvd-cart-dubbo
   registry:
     address: nacos://47.103.8.41:8848
   monitor:
     protocol: registry
   protocol:
-    port: 20886
+    port: 20900
   consumer:
     timeout: 60000
     retries: 3
+
+eshopblvd:
+  thread-pool:
+    core-size: 20
+    max-size: 200
+    keep-alive-time: 10

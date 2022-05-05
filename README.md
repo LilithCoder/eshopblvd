@@ -964,7 +964,7 @@ private String name;
 ```java
 @RefreshScope
 @RestController
-@RequestMapping("/coupon")
+@RequestMapping("coupon")
 public class CouponController {
     // ...
 }

@@ -60,9 +60,7 @@ public class SSOController {
             // 生成一个ticket给这个应用系统
             // key为service，value为TGT，存入本地缓存
             String ST = "ST-" + UUID.randomUUID().toString().replace("-", "");
-            if (serviceTicketCache.get(service) == null) {
-                serviceTicketCache.put(service, ST);
-            }
+            serviceTicketCache.putIfAbsent(service, ST);
             log.info("1: {}", service);
             return "redirect:" + service + "?ticket=" + ST;
         }
@@ -104,9 +102,7 @@ public class SSOController {
         // service ticket给应用系统用来给CAS鉴权获取登陆态用
         // key为service，value为TGT，存入本地缓存
         String ST = "ST-" + UUID.randomUUID().toString().replace("-", "");
-        if (serviceTicketCache.get(service) == null) {
-            serviceTicketCache.put(service, ST);
-        }
+        serviceTicketCache.putIfAbsent(service, ST);
         // 重定向到应用系统页
         String url = service + "?ticket=" + ST;
         log.info("2: {}", url);

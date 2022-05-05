@@ -114,7 +114,8 @@ public class AuthController {
             return CommonResponse.error(BizCodeEnum.LOGINACCT_PASSWORD_INVAILD_EXCEPTION.getCode(), BizCodeEnum.LOGINACCT_PASSWORD_INVAILD_EXCEPTION.getMsg());
         }
         // 登陆成功，重定向到首页eshopblvd.com
-        response.setStatus(HttpStatus.SC_TEMPORARY_REDIRECT);
+        // TODO: 后续删掉注释
+//        response.setStatus(HttpStatus.SC_TEMPORARY_REDIRECT);
         response.addHeader("Location", DomainConstant.HOME_PAGE);
         return CommonResponse.success();
     }
