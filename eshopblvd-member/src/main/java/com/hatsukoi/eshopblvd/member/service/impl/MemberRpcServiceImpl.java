@@ -6,17 +6,18 @@ import com.hatsukoi.eshopblvd.api.member.MemberService;
 import com.hatsukoi.eshopblvd.exception.BizCodeEnum;
 import com.hatsukoi.eshopblvd.member.dao.MemberLevelMapper;
 import com.hatsukoi.eshopblvd.member.dao.MemberMapper;
+import com.hatsukoi.eshopblvd.member.dao.MemberReceiveAddressMapper;
 import com.hatsukoi.eshopblvd.member.entity.Member;
 import com.hatsukoi.eshopblvd.member.entity.MemberExample;
+import com.hatsukoi.eshopblvd.member.entity.MemberReceiveAddress;
+import com.hatsukoi.eshopblvd.member.entity.MemberReceiveAddressExample;
 import com.hatsukoi.eshopblvd.member.exception.PhoneExistException;
 import com.hatsukoi.eshopblvd.member.exception.UsernameExistException;
 import com.hatsukoi.eshopblvd.member.util.EncryptUtils;
-import com.hatsukoi.eshopblvd.to.MemberRegisterTO;
-import com.hatsukoi.eshopblvd.to.MemberTO;
-import com.hatsukoi.eshopblvd.to.SocialUserTO;
-import com.hatsukoi.eshopblvd.to.UserLoginTO;
+import com.hatsukoi.eshopblvd.to.*;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import com.hatsukoi.eshopblvd.utils.HttpUtils;
+import com.hatsukoi.eshopblvd.vo.MemberAddressVO;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
@@ -28,6 +29,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * @author gaoweilin
@@ -41,6 +43,9 @@ public class MemberRpcServiceImpl implements MemberService {
 
     @Autowired
     private MemberMapper memberMapper;
+
+    @Autowired
+    private MemberReceiveAddressMapper memberReceiveAddressMapper;
 
     /**
      * 用户注册接口方法RPC实现
@@ -151,6 +156,19 @@ public class MemberRpcServiceImpl implements MemberService {
         MemberTO memberTO = new MemberTO();
         BeanUtils.copyProperties(member, memberTO);
         return CommonResponse.success().setData(memberTO);
+    }
+
+    @Override
+    public CommonResponse getAddress(Long memberId) {
+        MemberReceiveAddressExample memberReceiveAddressExample = new MemberReceiveAddressExample();
+        memberReceiveAddressExample.createCriteria().andMemberIdEqualTo(memberId);
+        List<MemberReceiveAddress> memberReceiveAddresses = memberReceiveAddressMapper.selectByExample(memberReceiveAddressExample);
+        List<MemberAddressVO> collect = memberReceiveAddresses.stream().map((address) -> {
+            MemberAddressVO addressVO = new MemberAddressVO();
+            BeanUtils.copyProperties(address, addressVO);
+            return addressVO;
+        }).collect(Collectors.toList());
+        return CommonResponse.success().setData(collect);
     }
 
     /**

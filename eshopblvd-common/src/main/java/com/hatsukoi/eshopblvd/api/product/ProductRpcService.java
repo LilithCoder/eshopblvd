@@ -3,6 +3,7 @@ package com.hatsukoi.eshopblvd.api.product;
 import com.hatsukoi.eshopblvd.to.SkuInfoTO;
 
 import java.util.HashMap;
+import java.util.List;
 
 /**
  * @author gaoweilin
@@ -12,4 +13,6 @@ public interface ProductRpcService {
     HashMap<String, Object> getSkuInfo(Long skuId);
 
     HashMap<String, Object> getSkuSaleAttrsWithValue(Long skuId);
+
+    HashMap<String, Object> getSkusPrice(List<Long> skuIds);
 }
