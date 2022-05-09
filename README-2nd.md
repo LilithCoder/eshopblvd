@@ -4426,6 +4426,8 @@ protected void doFilterInternal(HttpServletRequest request,
 
 ![](./docs/assets/215.png)
 
+![流程图](https://yqfile.alicdn.com/dcb743204f8a201be53df5338fc34affe5fa1059.png)
+
 ### 好文档摘录
 
 [单点登录（SSO）看这一篇就够了](https://developer.aliyun.com/article/636281)
@@ -4433,6 +4435,8 @@ protected void doFilterInternal(HttpServletRequest request,
 https://www.cnblogs.com/zzdbullet/p/11136589.html
 
 https://www.cnblogs.com/Eleven-Liu/p/10336181.html
+
+https://blog.csdn.net/hejingyuan6/article/details/44277023
 
 ### aop的运用
 

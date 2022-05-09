@@ -10,6 +10,22 @@ spring:
         server-addr: 47.103.8.41:8848
   application:
     name: eshopblvd-order
+  rabbitmq:
+    host: 124.222.187.180
+    port: 5672
+    virtual-host: /
+    publisher-confirms: true
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+  redis:
+    host: 47.103.8.41
+    port: 6379
+  session:
+    store-type: redis
 
 mybatis:
   mapper-locations: classpath*:com/hatsukoi/eshopblvd/order/mapper/*.xml
@@ -26,3 +42,9 @@ dubbo:
     protocol: registry
   protocol:
     port: 20890
+
+eshopblvd:
+  thread-pool:
+    core-size: 20
+    max-size: 200
+    keep-alive-time: 10

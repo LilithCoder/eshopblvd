@@ -8,6 +8,8 @@ spring:
   redis:
     host: 47.103.8.41
     port: 6379
+  session:
+    store-type: redis
 
 server:
   port: 30000
