@@ -1,5 +1,6 @@
 package com.hatsukoi.eshopblvd.ware.dao;
 
+import com.hatsukoi.eshopblvd.vo.OrderItemVO;
 import com.hatsukoi.eshopblvd.ware.entity.WareSku;
 import com.hatsukoi.eshopblvd.ware.entity.WareSkuExample;
 import java.util.List;
@@ -97,4 +98,10 @@ public interface WareSkuMapper {
     void addStock(@Param("skuId") Long skuId, @Param("wareId") Long wareId, @Param("skuNum") Integer skuNum);
 
     Long getSkuStock(@Param("skuId") Long skuId);
+
+    List<Long> getWareIdsByLock(@Param("lock") OrderItemVO lock);
+
+    Long lockSkuStock(@Param("skuId") Long skuId, @Param("count") Integer count, @Param("wareId") Long wareId);
+
+    void unlockStock(@Param("skuId") Long skuId, @Param("wareId") Long wareId, @Param("skuNum") Integer skuNum);
 }

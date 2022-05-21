@@ -2,24 +2,24 @@ spring:
   datasource:
     username: root
     password: root
-    url: jdbc:mysql://47.103.8.41:3306/eshopblvd_pms
+    url: jdbc:mysql://127.0.0.1:3306/eshopblvd_pms
     driver-class-name: com.mysql.cj.jdbc.Driver
   cloud:
     nacos:
       discovery:
         server-addr: 47.103.8.41:8848
     alicloud:
-      access-key: LTAI5t6ouqnXWKiHQFVkQ197
-      secret-key: nxq2PipTiU6SAHOegQiqMKyfJqD51s
+      access-key: xxx
+      secret-key: xxx
       oss:
-        endpoint: oss-cn-shanghai.aliyuncs.com
+        endpoint: xxx
         bucket: eshopblvd
       sms:
-        host: https://dfsns.market.alicloudapi.com
-        path: /data/send_sms
+        host: xxx
+        path: xxx
         method: POST
-        appcode: f0e99bc9e94647df88020e8620363174
-        templateId: TPL_0000
+        appcode: xxx
+        templateId: xxx
 
 
   application:

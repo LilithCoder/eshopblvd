@@ -301,6 +301,25 @@
       </if>
     </trim>
   </insert>
+  <insert id="batchInsert">
+    insert into oms_order_item (id, order_id, order_sn,
+                                spu_id, spu_name, spu_pic,
+                                spu_brand, category_id, sku_id,
+                                sku_name, sku_pic, sku_price,
+                                sku_quantity, sku_attrs_vals, promotion_amount,
+                                coupon_amount, integration_amount, real_amount,
+                                gift_integration, gift_growth)
+    values
+    <foreach collection="orderItems" item="item" separator=",">
+      (#{item.id,jdbcType=BIGINT}, #{item.orderId,jdbcType=BIGINT}, #{item.orderSn,jdbcType=CHAR},
+      #{item.spuId,jdbcType=BIGINT}, #{item.spuName,jdbcType=VARCHAR}, #{item.spuPic,jdbcType=VARCHAR},
+      #{item.spuBrand,jdbcType=VARCHAR}, #{item.categoryId,jdbcType=BIGINT}, #{item.skuId,jdbcType=BIGINT},
+      #{item.skuName,jdbcType=VARCHAR}, #{item.skuPic,jdbcType=VARCHAR}, #{item.skuPrice,jdbcType=DECIMAL},
+      #{item.skuQuantity,jdbcType=INTEGER}, #{item.skuAttrsVals,jdbcType=VARCHAR}, #{item.promotionAmount,jdbcType=DECIMAL},
+      #{item.couponAmount,jdbcType=DECIMAL}, #{item.integrationAmount,jdbcType=DECIMAL}, #{item.realAmount,jdbcType=DECIMAL},
+      #{item.giftIntegration,jdbcType=INTEGER}, #{item.giftGrowth,jdbcType=INTEGER})
+    </foreach>
+  </insert>
   <select id="countByExample" parameterType="com.hatsukoi.eshopblvd.order.entity.OrderItemExample" resultType="java.lang.Long">
     <!--
       WARNING - @mbg.generated

@@ -2,7 +2,7 @@ spring:
   datasource:
     username: root
     password: root
-    url: jdbc:mysql://47.103.8.41:3306/eshopblvd_oms
+    url: jdbc:mysql://127.0.0.1:3306/eshopblvd_oms
     driver-class-name: com.mysql.cj.jdbc.Driver
   cloud:
     nacos:

@@ -1,5 +1,6 @@
 package com.hatsukoi.eshopblvd.order.config;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
@@ -14,6 +15,7 @@ import org.springframework.context.annotation.Primary;
  * @author gaoweilin
  * @date 2022/05/07 Sat 3:16 PM
  */
+@Slf4j
 @Configuration
 public class MyRabbitConfig {
     RabbitTemplate rabbitTemplate;
@@ -51,7 +53,7 @@ public class MyRabbitConfig {
                  */
                 //服务器收到了
                 //修改消息的状态
-                System.out.println("confirm...correlationData["+correlationData+"]==>ack["+ack+"]==>cause["+cause+"]");
+                log.info("confirm...correlationData["+correlationData+"]==>ack["+ack+"]==>cause["+cause+"]");
             }
         });
         //设置消息抵达队列的确认回调
@@ -67,7 +69,7 @@ public class MyRabbitConfig {
             @Override
             public void returnedMessage(Message message, int replyCode, String replyText, String exchange, String routingKey) {
                 //报错误了。修改数据库当前消息的状态->错误。
-                System.out.println("Fail Message["+message+"]==>replyCode["+replyCode+"]==>replyText["+replyText+"]===>exchange["+exchange+"]===>routingKey["+routingKey+"]");
+                log.info("Fail Message["+message+"]==>replyCode["+replyCode+"]==>replyText["+replyText+"]===>exchange["+exchange+"]===>routingKey["+routingKey+"]");
             }
         });
     }

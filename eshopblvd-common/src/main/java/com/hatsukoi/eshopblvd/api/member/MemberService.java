@@ -21,4 +21,6 @@ public interface MemberService {
     HashMap<String, Object> weiboLogin(SocialUserTO socialUser);
 
     HashMap<String, Object> getAddress(Long memberId);
+
+    HashMap<String, Object> getAddrInfoById(Long addrId);
 }

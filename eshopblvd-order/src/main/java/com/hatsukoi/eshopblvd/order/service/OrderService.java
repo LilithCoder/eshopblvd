@@ -1,6 +1,8 @@
 package com.hatsukoi.eshopblvd.order.service;
 
+import com.hatsukoi.eshopblvd.order.entity.Order;
 import com.hatsukoi.eshopblvd.order.vo.OrderConfirmVO;
+import com.hatsukoi.eshopblvd.order.vo.OrderSubmitVO;
 
 import java.util.concurrent.ExecutionException;
 
@@ -10,4 +12,8 @@ import java.util.concurrent.ExecutionException;
  */
 public interface OrderService {
     OrderConfirmVO getOrderConfirmData(Long addrId) throws ExecutionException, InterruptedException;
+
+    Order submitOrder(OrderSubmitVO orderSubmit);
+
+    void closeOrder(Order order);
 }

@@ -171,6 +171,14 @@ public class MemberRpcServiceImpl implements MemberService {
         return CommonResponse.success().setData(collect);
     }
 
+    @Override
+    public CommonResponse getAddrInfoById(Long addrId) {
+        MemberReceiveAddress memberReceiveAddress = memberReceiveAddressMapper.selectByPrimaryKey(addrId);
+        MemberAddressVO memberAddress = new MemberAddressVO();
+        BeanUtils.copyProperties(memberReceiveAddress, memberAddress);
+        return CommonResponse.success().setData(memberAddress);
+    }
+
     /**
      * 具体注册逻辑
      * @param memberRegisterTO
