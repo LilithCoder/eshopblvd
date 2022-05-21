@@ -93,4 +93,6 @@ public interface OrderItemMapper {
      * @mbg.generated
      */
     int updateByPrimaryKey(OrderItem record);
+
+    void batchInsert(@Param("orderItems") List<OrderItem> orderItems);
 }

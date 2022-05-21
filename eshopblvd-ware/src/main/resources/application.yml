@@ -2,7 +2,7 @@ spring:
   datasource:
     username: root
     password: root
-    url: jdbc:mysql://47.103.8.41:3306/eshopblvd_wms?allowMultiQueries=true
+    url: jdbc:mysql://127.0.0.1:3306/eshopblvd_wms?allowMultiQueries=true
     driver-class-name: com.mysql.cj.jdbc.Driver
   cloud:
     nacos:
@@ -10,6 +10,13 @@ spring:
         server-addr: 47.103.8.41:8848
   application:
     name: eshopblvd-ware
+  rabbitmq:
+    host: xxx
+    port: 5672
+    virtual-host: /
+    listener:
+      simple:
+        acknowledge-mode: manual
 
 mybatis:
   mapper-locations: classpath*:com/hatsukoi/eshopblvd/ware/mapper/*.xml

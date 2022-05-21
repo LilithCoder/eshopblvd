@@ -111,9 +111,9 @@ public class OrderConfirmVO {
 
     public BigDecimal getPayPrice() {
         if (this.fare != null && this.integration != null) {
-            return getTotalPrice().subtract(this.fare).subtract(new BigDecimal(String.valueOf(Math.round(this.integration / 100))));
+            return getTotalPrice().add(this.fare).subtract(new BigDecimal(String.valueOf(Math.round(this.integration / 100))));
         } else if (this.fare != null) {
-            return getTotalPrice().subtract(this.fare);
+            return getTotalPrice().add(this.fare);
         } else if (this.integration != null) {
             return getTotalPrice().subtract(new BigDecimal(String.valueOf(Math.round(this.integration / 100))));
         } else {

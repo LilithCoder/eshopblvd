@@ -3,11 +3,14 @@ package com.hatsukoi.eshopblvd.product.service.impl;
 import com.hatsukoi.eshopblvd.api.product.ProductRpcService;
 import com.hatsukoi.eshopblvd.product.dao.SkuInfoMapper;
 import com.hatsukoi.eshopblvd.product.dao.SkuSaleAttrValueMapper;
+import com.hatsukoi.eshopblvd.product.dao.SpuInfoMapper;
 import com.hatsukoi.eshopblvd.product.entity.SkuInfo;
 import com.hatsukoi.eshopblvd.product.entity.SkuInfoExample;
 import com.hatsukoi.eshopblvd.product.entity.SkuSaleAttrValue;
+import com.hatsukoi.eshopblvd.product.entity.SpuInfo;
 import com.hatsukoi.eshopblvd.to.SkuInfoTO;
 import com.hatsukoi.eshopblvd.to.SkuPriceTO;
+import com.hatsukoi.eshopblvd.to.SpuInfoTo;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +32,9 @@ public class ProductRpcServiceImpl implements ProductRpcService {
 
     @Autowired
     SkuSaleAttrValueMapper skuSaleAttrValueMapper;
+
+    @Autowired
+    SpuInfoMapper spuInfoMapper;
 
     @Override
     public CommonResponse getSkuInfo(Long skuId) {
@@ -56,5 +62,20 @@ public class ProductRpcServiceImpl implements ProductRpcService {
             return skuPriceTO;
         }).collect(Collectors.toList());
         return CommonResponse.success().setData(collect);
+    }
+
+    /**
+     * 根据skuId返回所属spu的信息
+     * @param skuId
+     * @return
+     */
+    @Override
+    public CommonResponse getSpuInfoBySkuId(Long skuId) {
+        SkuInfo skuInfo = skuInfoMapper.selectByPrimaryKey(skuId);
+        Long spuId = skuInfo.getSpuId();
+        SpuInfo spuInfo = spuInfoMapper.selectByPrimaryKey(spuId);
+        SpuInfoTo spuInfoTo = new SpuInfoTo();
+        BeanUtils.copyProperties(spuInfo, spuInfoTo);
+        return CommonResponse.success().setData(spuInfoTo);
     }
 }

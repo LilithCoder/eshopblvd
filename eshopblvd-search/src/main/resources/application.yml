@@ -7,7 +7,7 @@ spring:
     name: eshopblvd-search
 #  elasticsearch:
 #    rest:
-#      uris: http://124.222.187.180:9200
+#      uris: xxx:9200
 
 server:
   port: 12000

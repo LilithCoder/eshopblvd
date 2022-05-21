@@ -15,4 +15,6 @@ public interface ProductRpcService {
     HashMap<String, Object> getSkuSaleAttrsWithValue(Long skuId);
 
     HashMap<String, Object> getSkusPrice(List<Long> skuIds);
+
+    HashMap<String, Object> getSpuInfoBySkuId(Long skuId);
 }

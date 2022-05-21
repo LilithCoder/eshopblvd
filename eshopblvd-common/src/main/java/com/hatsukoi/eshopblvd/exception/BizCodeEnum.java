@@ -30,7 +30,10 @@ public enum BizCodeEnum {
     LOGINACCT_NONEXIST_EXCEPTION(15005,"该账号尚未注册"), // 登陆
     LOGINACCT_PASSWORD_INVAILD_EXCEPTION(15006,"账号密码错误"), // 登陆
     WEIBO_OAUTH2_RPC_FAIL(15007,"RPC会员服务登陆接口失败"), // 社交登陆
-    WEIBO_OAUTH2_ACCESS_FAIL(15008,"微博访问权限令牌access_token获取失败"); // 社交登陆
+    WEIBO_OAUTH2_ACCESS_FAIL(15008,"微博访问权限令牌access_token获取失败"), // 社交登陆
+    ORDER_TOKEN_EXCEPTION(21000,"订单提交令牌验证失败"), // 订单
+    INVALID_PRICE_EXCEPTION(21000,"订单验价失败，购物车有变动"), // 订单
+    NO_STOCK_EXCEPTION(21001,"商品库存不足"); // 订单
 
 
     private int code;

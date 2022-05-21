@@ -108,6 +108,14 @@ public class CommonResponse extends HashMap<String, Object> {
     }
 
     /**
+     * 获取信息
+     * @return
+     */
+    public String getMsg() {
+        return (String) get("msg");
+    }
+
+    /**
      * 返回的map对象转换为CommonResponse
      * @return
      */

@@ -1751,51 +1751,1804 @@ public class OrderServiceImpl implements OrderService {
 
 ## 接口幂等性
 
+### 什么是幂等性
+
+接口幂等性就是用户对于同一操作发起的一次请求或者多次请求的结果是一致的，不会因 为多次点击而产生了副作用;比如说支付场景，用户购买了商品支付扣款成功，但是返回结 果的时候网络异常，此时钱已经扣了，用户再次点击按钮，此时会进行第二次扣款，返回结 果成功，用户查询余额返发现多扣钱了，流水记录也变成了两条...,这就没有保证接口 的幂等性。
+
+### 哪些情况需要防止
+
+用户多次点击按钮
+
+用户页面回退再次提交
+
+微服务互相调用，由于网络问题，导致请求失败，dubbo 触发重试机制
+
+其他业务情况
+
+### 什么情况下需要幂等
+
+以 SQL 为例，有些操作是天然幂等的。
+ SELECT * FROM table WHER id=?，无论执行多少次都不会改变状态，是天然的幂等。 
+
+UPDATE tab1 SET col1=1 WHERE col2=2，无论执行成功多少次状态都是一致的，也是幂等操作。
+
+delete from user where userid=1，多次操作，结果一样，具备幂等性
+
+insert into user(userid,name) values(1,'a') 如 userid 为唯一主键，即重复操作上面的业务，只 会插入一条用户数据，具备幂等性。
+
+UPDATE tab1 SET col1=col1+1 WHERE col2=2，每次执行的结果都会发生变化，不是幂等的。 
+
+insert into user(userid,name) values(1,'a') 如 userid 不是主键，可以重复，那上面业务多次操 作，数据都会新增多条，不具备幂等性。
+
+那订单举例，「oms_order」表中， 订单号order_sn添加UNIQUE类型索引，保证同一个订单只有一条记录
+
+### 幂等解决方案
+
+#### 1. **token** 机制（选择的这个）
+
+1、服务端提供了发送 token 的接口。我们在分析业务的时候，哪些业务是存在幂等问题的， 就必须在执行业务前，先去获取 token，服务器会把 token 保存到 redis 中
+
+2、然后调用业务接口请求时，把 token 携带过去，一般放在请求头部
+
+3、服务器判断 token 是否存在 redis 中，存在表示第一次请求，然后删除 token,继续执行业 务
+
+4、如果判断 token 不存在 redis 中，就表示是重复操作，直接返回重复标记给 client，这样 就保证了业务代码，不被重复执行。
 
 
 
+危险性:
+ 1、先删除 token 还是后删除 token;
+
+​		(1)  先删除可能导致，业务确实没有执行，重试还带上之前token，由于防重设计导致， 请求还是不能执行。
+
+​		(2)  后删除可能导致，业务处理成功，但是服务闪断，出现超时，没有删除token，别 人继续重试，导致业务被执行两边
+
+​		(3)  我们最好设计为先删除token，如果业务调用失败，就重新获取token再次请求。
+
+2、Token 获取、比较和删除必须是原子性
+
+​		(1)  redis.get(token) 、token.equals、redis.del(token)如果这两个操作不是原子，可能导 致，高并发下，都 get 到同样的数据，判断都成功，继续业务并发执行
+
+​		(2)  可以在redis使用lua脚本完成这个操作
+
+```
+if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end
+```
+
+#### 2. 锁机制
+
+##### 数据库悲观锁
+
+select * from xxxx where id = 1 for update;
+
+悲观锁使用时一般伴随事务一起使用，数据锁定时间可能会很长，需要根据实际情况选用。 另外要注意的是，id 字段一定是主键或者唯一索引，不然可能造成锁表的结果，处理起来会 非常麻烦
+
+##### 数据库乐观锁
+
+这种方法适合在更新的场景中，
+
+update t_goods set count = count -1 , version = version + 1 where good_id=2 and version = 1
+ 根据 version 版本，也就是在操作库存前先获取当前商品的 version 版本号，然后操作的时候 带上此 version 号。我们梳理下，我们第一次操作库存时，得到 version 为 1，调用库存服务 version 变成了 2;但返回给订单服务出现了问题，订单服务又一次发起调用库存服务，当订 单服务传如的 version 还是 1，再执行上面的 sql 语句时，就不会执行;因为 version 已经变 为 2 了，where 条件就不成立。这样就保证了不管调用几次，只会真正的处理一次。 乐观锁主要使用于处理读多写少的问题
+
+##### 业务层分布式锁
+
+如果多个机器可能在同一时间同时处理相同的数据，比如多台机器定时任务都拿到了相同数 据处理，我们就可以加分布式锁，锁定此数据，处理完成后释放锁。获取到锁的必须先判断 这个数据是否被处理过
+
+#### 3. 各种唯一约束
+
+##### 数据库唯一约束
+
+插入数据，应该按照唯一索引进行插入，比如订单号，相同的订单就不可能有两条记录插入。 我们在数据库层面防止重复。
+ 这个机制是利用了数据库的主键唯一约束的特性，解决了在 insert 场景时幂等问题。但主键 的要求不是自增的主键，这样就需要业务生成全局唯一的主键。 如果是分库分表场景下，路由规则要保证相同请求下，落地在同一个数据库和同一表中，要 不然数据库主键约束就不起效果了，因为是不同的数据库和表主键不相关
+
+##### **redis set** 防重
+
+很多数据需要处理，只能被处理一次，比如我们可以计算数据的 MD5 将其放入 redis 的 set，
+
+每次处理数据，先看这个 MD5 是否已经存在，存在就不处理
+
+##### 防重表
+
+使用订单号 orderNo 做为去重表的唯一索引，把唯一索引插入去重表，再进行业务操作，且 他们在同一个事务中。这个保证了重复请求时，因为去重表有唯一约束，导致请求失败，避 免了幂等问题。这里要注意的是，去重表和业务表应该在同一库中，这样就保证了在同一个 事务，即使业务操作失败了，也会把去重表的数据回滚。这个很好的保证了数据一致性。
+
+之前说的 redis 防重也算
+
+##### 全局请求唯一 **id**
+
+调用接口时，生成一个唯一 id，redis 将数据保存到集合中(去重)，存在即处理过。 可以使用 nginx 设置每一个请求的唯一 id;
+ proxy_set_header X-Request-Id $request_id;
+
+## 支付选择页（订单提交）
+
+### 新增【接口】订单提交
+
+「oms_order」订单表
+
+「oms_order_item」订单项表
+
+「wms_ware_sku」库存表
+
+#### （1）模型抽取
+
+页面提交数据
+
+```java
+@Data
+public class OrderSubmitVo {
+
+    /** 收获地址的id **/
+    private Long addrId;
+
+    /** 支付方式 **/
+    private Integer payType;
+    //无需提交要购买的商品，去购物车再获取一遍
+    //优惠、发票
+
+    /** 防重令牌 **/
+    private String orderToken;
+
+    /** 应付价格 **/
+    private BigDecimal payPrice;
+
+    /** 订单备注 **/
+    private String remarks;
+
+    //用户相关的信息，直接去session中取出即可
+}
+```
+
+成功后转发至支付页面携带数据
+
+```java
+@Data
+public class SubmitOrderResponseVo {
+
+    private OrderEntity order;
+
+    /** 错误状态码 **/
+    private Integer code;
+}
+```
+
+#### （2）提交订单
+
+- 提交订单成功，则携带返回数据转发至支付页面
+- 提交订单失败，则携带错误信息重定向至确认页
+
+```java
+@RequestMapping("/submitOrder")
+public String submitOrder(OrderSubmitVo submitVo, Model model, RedirectAttributes attributes) {
+    try{
+        SubmitOrderResponseVo responseVo=orderService.submitOrder(submitVo);
+        Integer code = responseVo.getCode();
+        if (code==0){
+            model.addAttribute("order", responseVo.getOrder());
+            return "pay";
+        }else {
+            String msg = "下单失败;";
+            switch (code) {
+                case 1:
+                    msg += "防重令牌校验失败";
+                    break;
+                case 2:
+                    msg += "商品价格发生变化";
+                    break;
+            }
+            attributes.addFlashAttribute("msg", msg);
+            return "redirect:http://order.gulimall.com/toTrade";
+        }
+    }catch (Exception e){
+        if (e instanceof NoStockException){
+            String msg = "下单失败，商品无库存";
+            attributes.addFlashAttribute("msg", msg);
+        }
+        return "redirect:http://order.gulimall.com/toTrade";
+    }
+}
+    @Transactional
+    @Override
+    public SubmitOrderResponseVo submitOrder(OrderSubmitVo submitVo) {
+        SubmitOrderResponseVo responseVo = new SubmitOrderResponseVo();
+        responseVo.setCode(0);
+        //1. 验证防重令牌
+        MemberResponseVo memberResponseVo = LoginInterceptor.loginUser.get();
+        String script= "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+        Long execute = redisTemplate.execute(new DefaultRedisScript<>(script,Long.class), Arrays.asList(OrderConstant.USER_ORDER_TOKEN_PREFIX + memberResponseVo.getId()), submitVo.getOrderToken());
+        if (execute == 0L) {
+            //1.1 防重令牌验证失败
+            responseVo.setCode(1);
+            return responseVo;
+        }else {
+            //2. 创建订单、订单项
+            OrderCreateTo order =createOrderTo(memberResponseVo,submitVo);
+
+            //3. 验价
+            BigDecimal payAmount = order.getOrder().getPayAmount();
+            BigDecimal payPrice = submitVo.getPayPrice();
+            if (Math.abs(payAmount.subtract(payPrice).doubleValue()) < 0.01) {
+                //4. 保存订单
+                saveOrder(order);
+                //5. 锁定库存
+                List<OrderItemVo> orderItemVos = order.getOrderItems().stream().map((item) -> {
+                    OrderItemVo orderItemVo = new OrderItemVo();
+                    orderItemVo.setSkuId(item.getSkuId());
+                    orderItemVo.setCount(item.getSkuQuantity());
+                    return orderItemVo;
+                }).collect(Collectors.toList());
+                R r = wareFeignService.orderLockStock(orderItemVos);
+                //5.1 锁定库存成功
+                if (r.getCode()==0){
+//                    int i = 10 / 0;
+                    responseVo.setOrder(order.getOrder());
+                    responseVo.setCode(0);
+                    return responseVo;
+                }else {
+                    //5.1 锁定库存失败
+                    String msg = (String) r.get("msg");
+                    throw new NoStockException(msg);
+                }
+
+            }else {
+                //验价失败
+                responseVo.setCode(2);
+                return responseVo;
+            }
+        }
+    }
+```
+
+##### 1) 验证防重令牌
+
+为防止在获取令牌、对比值和删除令牌之间发生错误导入令牌校验出错，我们必须使用脚本保证原子性操作
+
+```
+MemberResponseVo memberResponseVo = LoginInterceptor.loginUser.get();
+String script= "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+Long execute = redisTemplate.execute(new DefaultRedisScript<>(script,Long.class), Arrays.asList(OrderConstant.USER_ORDER_TOKEN_PREFIX + memberResponseVo.getId()), submitVo.getOrderToken());
+if (execute == 0L) {
+    //1.1 防重令牌验证失败
+    responseVo.setCode(1);
+    return responseVo;
+```
+
+##### 2) 创建订单、订单项
+
+抽取模型
+
+```
+@Data
+public class OrderCreateTo {
+
+    private OrderEntity order;
+
+    private List<OrderItemEntity> orderItems;
+
+    /** 订单计算的应付价格 **/
+    private BigDecimal payPrice;
+
+    /** 运费 **/
+    private BigDecimal fare;
+
+}
+```
+
+创建订单、订单项
+
+```
+//2. 创建订单、订单项
+OrderCreateTo order =createOrderTo(memberResponseVo,submitVo);
+
+private OrderCreateTo createOrderTo(MemberResponseVo memberResponseVo, OrderSubmitVo submitVo) {
+    //2.1 用IdWorker生成订单号
+    String orderSn = IdWorker.getTimeId();
+    //2.2 构建订单
+    OrderEntity entity = buildOrder(memberResponseVo, submitVo,orderSn);
+    //2.3 构建订单项
+    List<OrderItemEntity> orderItemEntities = buildOrderItems(orderSn);
+    //2.4 计算价格
+    compute(entity, orderItemEntities);
+    OrderCreateTo createTo = new OrderCreateTo();
+    createTo.setOrder(entity);
+    createTo.setOrderItems(orderItemEntities);
+    return createTo;
+}
+```
+
+构建订单
+
+```
+private OrderEntity buildOrder(MemberResponseVo memberResponseVo, OrderSubmitVo submitVo, String orderSn) {
+
+        OrderEntity orderEntity =new OrderEntity();
+
+        orderEntity.setOrderSn(orderSn);
+
+        //1) 设置用户信息
+        orderEntity.setMemberId(memberResponseVo.getId());
+        orderEntity.setMemberUsername(memberResponseVo.getUsername());
+
+        //2) 获取邮费和收件人信息并设置
+        FareVo fareVo = wareFeignService.getFare(submitVo.getAddrId());
+        BigDecimal fare = fareVo.getFare();
+        orderEntity.setFreightAmount(fare);
+        MemberAddressVo address = fareVo.getAddress();
+        orderEntity.setReceiverName(address.getName());
+        orderEntity.setReceiverPhone(address.getPhone());
+        orderEntity.setReceiverPostCode(address.getPostCode());
+        orderEntity.setReceiverProvince(address.getProvince());
+        orderEntity.setReceiverCity(address.getCity());
+        orderEntity.setReceiverRegion(address.getRegion());
+        orderEntity.setReceiverDetailAddress(address.getDetailAddress());
+
+        //3) 设置订单相关的状态信息
+        orderEntity.setStatus(OrderStatusEnum.CREATE_NEW.getCode());
+        orderEntity.setConfirmStatus(0);
+        orderEntity.setAutoConfirmDay(7);
+
+        return orderEntity;
+    }
+```
+
+构建订单项
+
+```
+private OrderItemEntity buildOrderItem(OrderItemVo item) {
+        OrderItemEntity orderItemEntity = new OrderItemEntity();
+        Long skuId = item.getSkuId();
+        //1) 设置sku相关属性
+        orderItemEntity.setSkuId(skuId);
+        orderItemEntity.setSkuName(item.getTitle());
+        orderItemEntity.setSkuAttrsVals(StringUtils.collectionToDelimitedString(item.getSkuAttrValues(), ";"));
+        orderItemEntity.setSkuPic(item.getImage());
+        orderItemEntity.setSkuPrice(item.getPrice());
+        orderItemEntity.setSkuQuantity(item.getCount());
+        //2) 通过skuId查询spu相关属性并设置
+        R r = productFeignService.getSpuBySkuId(skuId);
+        if (r.getCode() == 0) {
+            SpuInfoTo spuInfo = r.getData(new TypeReference<SpuInfoTo>() {
+            });
+            orderItemEntity.setSpuId(spuInfo.getId());
+            orderItemEntity.setSpuName(spuInfo.getSpuName());
+            orderItemEntity.setSpuBrand(spuInfo.getBrandName());
+            orderItemEntity.setCategoryId(spuInfo.getCatalogId());
+        }
+        //3) 商品的优惠信息(不做)
+
+        //4) 商品的积分成长，为价格x数量
+        orderItemEntity.setGiftGrowth(item.getPrice().multiply(new BigDecimal(item.getCount())).intValue());
+        orderItemEntity.setGiftIntegration(item.getPrice().multiply(new BigDecimal(item.getCount())).intValue());
+
+        //5) 订单项订单价格信息
+        orderItemEntity.setPromotionAmount(BigDecimal.ZERO);
+        orderItemEntity.setCouponAmount(BigDecimal.ZERO);
+        orderItemEntity.setIntegrationAmount(BigDecimal.ZERO);
+
+        //6) 实际价格
+        BigDecimal origin = orderItemEntity.getSkuPrice().multiply(new BigDecimal(orderItemEntity.getSkuQuantity()));
+        BigDecimal realPrice = origin.subtract(orderItemEntity.getPromotionAmount())
+                .subtract(orderItemEntity.getCouponAmount())
+                .subtract(orderItemEntity.getIntegrationAmount());
+        orderItemEntity.setRealAmount(realPrice);
+
+        return orderItemEntity;
+    }
+```
+
+计算订单价格
+
+```
+private void compute(OrderEntity entity, List<OrderItemEntity> orderItemEntities) {
+        //总价
+        BigDecimal total = BigDecimal.ZERO;
+        //优惠价格
+        BigDecimal promotion=new BigDecimal("0.0");
+        BigDecimal integration=new BigDecimal("0.0");
+        BigDecimal coupon=new BigDecimal("0.0");
+        //积分
+        Integer integrationTotal = 0;
+        Integer growthTotal = 0;
+
+        for (OrderItemEntity orderItemEntity : orderItemEntities) {
+            total=total.add(orderItemEntity.getRealAmount());
+            promotion=promotion.add(orderItemEntity.getPromotionAmount());
+            integration=integration.add(orderItemEntity.getIntegrationAmount());
+            coupon=coupon.add(orderItemEntity.getCouponAmount());
+            integrationTotal += orderItemEntity.getGiftIntegration();
+            growthTotal += orderItemEntity.getGiftGrowth();
+        }
+
+        entity.setTotalAmount(total);
+        entity.setPromotionAmount(promotion);
+        entity.setIntegrationAmount(integration);
+        entity.setCouponAmount(coupon);
+        entity.setIntegration(integrationTotal);
+        entity.setGrowth(growthTotal);
+
+        //付款价格=商品价格+运费
+        entity.setPayAmount(entity.getFreightAmount().add(total));
+
+        //设置删除状态(0-未删除，1-已删除)
+        entity.setDeleteStatus(0);
+    }
+```
+
+##### 3) 验价
+
+将页面提交的价格和后台计算的价格进行对比，若不同则提示用户`商品价格发生变化`
+
+```
+BigDecimal payAmount = order.getOrder().getPayAmount();
+BigDecimal payPrice = submitVo.getPayPrice();
+if (Math.abs(payAmount.subtract(payPrice).doubleValue()) < 0.01) {
+			/****************/
+}else {
+    //验价失败
+    responseVo.setCode(2);
+    return responseVo;
+}
+```
+
+##### 4) 保存订单
+
+```
+private void saveOrder(OrderCreateTo orderCreateTo) {
+    OrderEntity order = orderCreateTo.getOrder();
+    order.setCreateTime(new Date());
+    order.setModifyTime(new Date());
+    this.save(order);
+    orderItemService.saveBatch(orderCreateTo.getOrderItems());
+}
+```
+
+##### 5) 锁定库存
+
+```
+ List<OrderItemVo> orderItemVos = order.getOrderItems().stream().map((item) -> {
+                    OrderItemVo orderItemVo = new OrderItemVo();
+                    orderItemVo.setSkuId(item.getSkuId());
+                    orderItemVo.setCount(item.getSkuQuantity());
+                    return orderItemVo;
+                }).collect(Collectors.toList());
+                R r = wareFeignService.orderLockStock(orderItemVos);
+                //5.1 锁定库存成功
+                if (r.getCode()==0){
+                    responseVo.setOrder(order.getOrder());
+                    responseVo.setCode(0);
+                    return responseVo;
+                }else {
+                    //5.2 锁定库存失败
+                    String msg = (String) r.get("msg");
+                    throw new NoStockException(msg);
+                }
+```
+
+- 找出所有库存大于商品数的仓库
+- 遍历所有满足条件的仓库，逐个尝试锁库存，若锁库存成功则退出遍历
+
+```java
+@RequestMapping("/lock/order")
+public R orderLockStock(@RequestBody List<OrderItemVo> itemVos) {
+    try {
+        Boolean lock = wareSkuService.orderLockStock(itemVos);
+        return R.ok();
+    } catch (NoStockException e) {
+        return R.error(BizCodeEnum.NO_STOCK_EXCEPTION.getCode(), BizCodeEnum.NO_STOCK_EXCEPTION.getMsg());
+    }
+}
+
+@Transactional
+@Override
+public Boolean orderLockStock(List<OrderItemVo> itemVos) {
+    List<SkuLockVo> lockVos = itemVos.stream().map((item) -> {
+        SkuLockVo skuLockVo = new SkuLockVo();
+        skuLockVo.setSkuId(item.getSkuId());
+        skuLockVo.setNum(item.getCount());
+        //找出所有库存大于商品数的仓库
+        List<Long> wareIds = baseMapper.listWareIdsHasStock(item.getSkuId(), item.getCount());
+        skuLockVo.setWareIds(wareIds);
+        return skuLockVo;
+    }).collect(Collectors.toList());
+
+    for (SkuLockVo lockVo : lockVos) {
+        boolean lock = true;
+        Long skuId = lockVo.getSkuId();
+        List<Long> wareIds = lockVo.getWareIds();
+        //如果没有满足条件的仓库，抛出异常
+        if (wareIds == null || wareIds.size() == 0) {
+            throw new NoStockException(skuId);
+        }else {
+            for (Long wareId : wareIds) {
+                Long count=baseMapper.lockWareSku(skuId, lockVo.getNum(), wareId);
+                if (count==0){
+                    lock=false;
+                }else {
+                    lock = true;
+                    break;
+                }
+            }
+        }
+        if (!lock) throw new NoStockException(skuId);
+    }
+    return true;
+}
+```
+
+这里通过异常机制控制事务回滚，如果在锁定库存失败则抛出`NoStockException`s,订单服务和库存服务都会回滚。
+
+# 本地事务
+
+分布式情况下，可能出现一些服务事务不一致的情况
+
+- 远程服务假失败
+  - 库存服务执行成功，提交食物后，一直没返回，rpc有超时机制，会抛异常。但这是超时异常，不是库存锁定失败异常，这就造成订单会回滚，但库存却减了
+- 远程服务执行完成后，下面其他方法出现异常
+  - 比如说扣减积分出异常会滚了，订单服务能感受到，但是库存服务作为远程服务是感受不到的，不会自动回滚
+
+![](./docs/assets/246.png)
+
+## 本地事务
+
+### 事务的基本性质
+
+数据库事务的几个特性:原子性(Atomicity )、一致性( Consistency )、隔离性或独立性( Isolation) 和持久性(Durabilily)，简称就是 ACID;
+
+- 原子性:一系列的操作整体不可拆分，要么同时成功，要么同时失败
+- 一致性:数据在事务的前后，业务整体一致。
+  - 转账。A:1000;B:1000; 转200 事务成功; A:800 B:1200
+- 隔离性:事务之间互相隔离。
+- 持久性:一旦事务成功，数据一定会落盘在数据库。
+
+在以往的单体应用中，我们多个业务操作使用同一条连接操作不同的数据表，一旦有异常， 我们可以很容易的整体回滚;
+
+![](./docs/assets/247.png)
+
+Business:我们具体的业务代码
+Storage:库存业务代码;扣库存
+Order:订单业务代码;保存订单
+Account:账号业务代码;减账户余额
+
+比如买东西业务，扣库存，下订单，账户扣款，是一个整体;必须同时成功或者失败
+
+一个事务开始，代表以下的所有操作都在同一个连接里面;
+
+直接用spring的transactional注解即可
+
+### 事务的隔离级别
+
+- READ UNCOMMITTED(读未提交) 该隔离级别的事务会读到其它未提交事务的数据，此现象也称之为脏读。
+
+- READ COMMITTED(读提交) 一个事务可以读取另一个已提交的事务，多次读取会造成不一样的结果，此现象称为不可重 复读问题，Oracle 和 SQL Server 的默认隔离级别。
+
+- REPEATABLE READ(可重复读)
+   该隔离级别是 MySQL 默认的隔离级别，在同一个事务里，select 的结果是事务开始时时间 点的状态，因此，同样的 select 操作读到的结果会是一致的，但是，会有幻读现象。MySQL 的 InnoDB 引擎可以通过 next-key locks 机制(参考下文"行锁的算法"一节)来避免幻读。
+
+  整个事务期间内，第一次在数据库读到的记录，无论读多少次都是一样的，即使外部已经将这个记录修改了
+
+- SERIALIZABLE(序列化)
+   在该隔离级别下事务都是串行顺序执行的，MySQL 数据库的 InnoDB 引擎会给读操作隐式 加一把读共享锁，从而避免了脏读、不可重读复读和幻读问题。
+
+### 事务的传播行为
+
+- **PROPAGATION_REQUIRED**:如果当前没有事务，就创建一个新事务，如果当前存在事务， 就加入该事务，该设置是最常用的设置。
+- **PROPAGATION_SUPPORTS**:支持当前事务，如果当前存在事务，就加入该事务，如果当 前不存在事务，就以非事务执行。
+- **PROPAGATION_MANDATORY**:支持当前事务，如果当前存在事务，就加入该事务，如果 当前不存在事务，就抛出异常。
+- **PROPAGATION_REQUIRES_NEW**:创建新事务，无论当前存不存在事务，都创建新事务。 
+- **PROPAGATION_NOT_SUPPORTED**:以非事务方式执行操作，如果当前存在事务，就把当 前事务挂起。 
+- **PROPAGATION_NEVER**:以非事务方式执行，如果当前存在事务，则抛出异常。 
+- **PROPAGATION_NESTED**:如果当前存在事务，则在嵌套事务内执行。如果当前没有事务， 则执行与 PROPAGATION_REQUIRED 类似的操作。
+
+```java
+ //同一个对象内事务方法互调默认失效，原因 绕过了代理对象
+    //事务使用代理对象来控制的
+    @Transactional(timeout = 30) //a事务的所有设置就传播到了和他公用一个事务的方法
+    public void a() {
+        //b，c做任何设置都没用。都是和a公用一个事务
+//        this.b(); 没用
+//        this.c(); 没用
+        OrderServiceImpl orderService = (OrderServiceImpl) AopContext.currentProxy();
+        orderService.b();
+        orderService.c();
+//        bService.b(); //a事务
+//        cService.c(); //新事务(不回滚)
+        int i = 10 / 0;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED, timeout = 2) // 这里的timeout无效了，因为用了a的事务
+    public void b() {
+        //7s
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 20) // 这里的timeout有效
+    public void c() {
+
+    }
+```
+
+## **SpringBoot** 事务关键点
+
+**1**、事务的自动配置
+
+TransactionAutoConfiguration
+
+**2**、事务的坑 在同一个类里面，编写两个方法，内部调用的时候，会导致事务设置失效。原因是没有用到代理对象的缘故。 解决:
+
+- 导入 spring-boot-starter-aop
+
+  ```
+  引入aop-starter;spring-boot-starter-aop；引入了aspectj
+  ```
+
+  ```xml
+  				<dependency>
+              <groupId>org.springframework.boot</groupId>
+              <artifactId>spring-boot-starter-aop</artifactId>
+          </dependency>
+  ```
+
+- @EnableTransactionManagement(proxyTargetClass = true)
+
+- @EnableAspectJAutoProxy(exposeProxy=true)
+
+- AopContext.currentProxy() 调用方法
+
+```
+本地事务失效问题
+ * 同一个对象内事务方法互调默认失效，原因 绕过了代理对象，事务使用代理对象来控制的
+ * 解决：使用代理对象来调用事务方法
+ *   1）、引入aop-starter;spring-boot-starter-aop；引入了aspectj
+ *   2）、@EnableAspectJAutoProxy(exposeProxy = true)；开启 aspectj 动态代理功能。以后所有的动态代理都是aspectj创建的（即使没有接口也可以创建动态代理）。
+ *          对外暴露代理对象
+ *   3）、本类互调用调用对象
+ *      OrderServiceImpl orderService = (OrderServiceImpl) AopContext.currentProxy();
+ *          orderService.b();
+ *          orderService.c();
+```
+
+# 分布式事务
+
+## 为什么有分布式事务
+
+分布式系统经常出现的异常
+
+机器宕机、网络异常、消息丢失、消息乱序、数据错误、不可靠的 TCP、存储数据丢失...
+
+![](./docs/assets/248.png)
+
+分布式事务是企业集成中的一个技术难点，也是每一个分布式系统架构中都会涉及到的一个 东西，特别是在微服务架构中，几乎可以说是无法避免。
+
+## **CAP** 定理
+
+CAP 原则又称 CAP 定理，指的是在一个分布式系统中
+
+- 一致性(Consistency):
+  - 在分布式系统中的所有数据备份，在同一时刻是否同样的值。(等同于所有节点访 问同一份最新的数据副本)
+
+- 可用性(Availability)
+  - 在集群中一部分节点故障后，集群整体是否还能响应客户端的读写请求。(对数据更新具备高可用性)
+
+- 分区容错性(Partition tolerance)
+  - 大多数分布式系统都分布在多个子网络。每个子网络就叫做一个区(partition)。 分区容错的意思是，区间通信可能失败。比如，一台服务器放在中国，另一台服务 器放在美国，这就是两个区，它们之间可能无法通信。
+
+CAP 原则指的是，这三个要素最多只能同时实现两点，不可能三者兼顾。
+
+![](./docs/assets/250.png)
+
+一般来说，分区容错无法避免，因此可以认为 CAP 的 P 总是成立。CAP 定理告诉我们， 剩下的 C 和 A 无法同时做到。只能保持CP和AP，CA不可能，因为不可能保证网线不断
+
+想要保证CP，除了牺牲可用，还有实现一致性的算法
+
+分布式系统中实现一致性的 raft 算法、paxos http://thesecretlivesofdata.com/raft/
+
+## Raft算法（一致性算法）
+
+https://shuwoom.com/?p=826
+
+https://zhuanlan.zhihu.com/p/32052223
+
+https://raft.github.io/
+
+### 基本概念
+
+#### Raft的三种状态
+
+Raft集群包含多个服务器，5个服务器是比较典型的，允许系统容忍两个故障。在任何给定时间，每个服务器都处于以下三种状态之一，领导者（Leader），追随者（Follower）或候选人（Candidate）。 这几个状态见可以相互转换。
+
+Leader：处理所有客户端交互，日志复制等，一般一次只有一个Leader
+
+Follower：类似选民，完全被动
+
+Candidate：类似Proposer律师，可以被选为一个新的领导人，Leader选举过程中的临时角色
+
+Raft要求系统在任意时刻最多只有一个Leader，正常工作期间只有Leader和Followers
+
+#### 任期（Term）概念
+
+Raft算法角色状态转换如下：
+
+![](https://ask.qcloudimg.com/http-save/yehe-4736527/qpoopk9cal.jpeg?imageView2/2/w/1620)
+
+Follower只响应其他服务器的请求。如果Follower超时没有收到Leader的消息，它会成为一个Candidate并且开始一次Leader选举。收到大多数服务器投票的Candidate会成为新的Leader。Leader在宕机之前会一直保持Leader的状态。
+
+![](https://pic1.zhimg.com/80/v2-d3cc1cb525ac72dc59ed34148cb3199c_1440w.jpg)
+
+Raft算法将时间分为一个个的任期（term），每一个term的开始都是Leader选举。在成功选举Leader之后，Leader会在整个term内管理整个集群。如果Leader选举失败，该term就会因为没有Leader而结束。
+
+#### 心跳（heartbeats）和超时机制（timeout）
+
+在Raft算法中，有两个timeout机制来控制领导人选举：
+
+一个是选举定时器（eletion timeout）：即Follower等待成为Candidate状态的等待时间，这个时间被随机设定为150ms~300ms之间
+
+另一个是headrbeat timeout：在某个节点成为Leader以后，它会发送Append Entries消息给其他节点，这些消息就是通过heartbeat timeout来传送（每隔一个heartbeat timeout就要发送心跳包来维持连接），Follower接收到Leader的心跳包的同时也重置选举定时器。
+
+[![img](https://shuwoom.com/wp-content/uploads/2018/05/raft_demo.png)](https://shuwoom.com/wp-content/uploads/2018/05/raft_demo.png)
+
+#### 复制状态机
+
+我们知道，在一个分布式系统数据库中，如果每个节点的状态一致，每个节点都执行相同的命令序列，那么最终他们会得到一个一致的状态。也就是和说，为了保证整个分布式系统的一致性，我们需要保证每个节点执行相同的命令序列，也就是说每个节点的日志要保持一样。所以说，保证日志复制一致就是Raft等一致性算法的工作了。
+
+[![img](https://shuwoom.com/wp-content/uploads/2018/05/machine_state.png)](https://shuwoom.com/wp-content/uploads/2018/05/machine_state.png)
+
+复制状态机架构
+
+这里就涉及Replicated State Machine（复制状态机），如上图所示。在一个节点上，一致性模块（Consensus Module，也就是分布式共识算法）接收到了来自客户端的命令。然后把接收到的命令写入到日志中，该节点和其他节点通过一致性模块进行通信确保每个日志最终包含相同的命令序列。一旦这些日志的命令被正确复制，每个节点的状态机（State Machine）都会按照相同的序列去执行他们，从而最终得到一致的状态。然后将达成共识的结果返回给客户端，如下图所示。
+
+[![img](https://shuwoom.com/wp-content/uploads/2018/05/machine_state_structure.png)](https://shuwoom.com/wp-content/uploads/2018/05/machine_state_structure.png)
+
+### 选举Leader
+
+（1）一开始，所有节点都是以Follower角色启动，同时启动选举定时器（时间随机，降低冲突概率）
+
+[![img](https://shuwoom.com/wp-content/uploads/2018/05/image4-3.png)](https://shuwoom.com/wp-content/uploads/2018/05/image4-3.png)
+
+（2）如果一个节点发现在超过选举定时器的时间以后一直没有收到Leader发送的心跳请求，则该节点就会成为候选人，将其当前term加一，发起一次Leader选举，它首先给自己投票并且给集群中的其他服务器发送 RequestVote RPC （RPC细节参见八、Raft算法总结）。结果有以下三种情况：
+
+- 赢得了多数的选票，成功选举为Leader；
+- 收到了Leader的消息，表示有其它服务器已经抢先当选了Leader；
+- 没有服务器赢得多数的选票，Leader选举失败，等待选举时间超时后发起下一次选举。进入下一轮Term的选举，并随机设置选举定时器时间
+
+![](https://pic2.zhimg.com/80/v2-0471619d1b78ba6d57326d97825d9495_1440w.jpg)
+
+选举出Leader后，Leader通过定期向所有Followers发送心跳信息维持其统治。若Follower一段时间未收到Leader的心跳则认为Leader可能已经挂了，再次发起Leader选举过程
+
+### 日志复制
+
+所以现在所有对这个分布式系统的更新修改都要请求发给这个leader
+
+Leader选出后，就开始接收客户端的请求。Leader把请求作为日志条目（Log entries）加入到它的日志中，然后并行的向其他服务器发起 AppendEntries RPC （RPC细节参见八、Raft算法总结）复制日志条目。当这条日志被复制到大多数服务器上，Leader将这条日志应用到它的状态机并向客户端返回执行结果。
+
+Raft日志同步过程
+
+![](https://pic3.zhimg.com/80/v2-7cdaa12c6f34b1e92ef86b99c3bdcf32_1440w.jpg)
+
+当系统（leader）收到一个来自客户端的写请求，到返回给客户端，整个过程从leader的视角来看会经历以下步骤：
+
+- leader 追加log Entry
+
+  Client向Leader提交指令（如：SET 5），Leader收到命令后，将命令追加到本地日志中。此时，这个命令处于“**uncomitted**”状态，复制状态机不会执行该命令。
+
+  [![img](https://shuwoom.com/wp-content/uploads/2018/05/image15.png)](https://shuwoom.com/wp-content/uploads/2018/05/image15.png)
+
+- leader 将log Entry通过RPC并行的分发给follower，leader 等待大多数节点复制成功的响应，leader 将entry应用到状态机上，leader 对客户端进行响应
+
+  然后，Leader将命令（SET 5）并发复制给其他节点，并等待其他其他节点将命令写入到日志中。之后Leader节点就提交命令（即被状态机执行命令，这里是：SET 5），并将结果返回给Client节点。
+
+  [![img](https://shuwoom.com/wp-content/uploads/2018/05/image18.png)](https://shuwoom.com/wp-content/uploads/2018/05/image18.png)
+
+- leader 通知follower应用日志
+
+  Leader节点在提交命令后，下一次的心跳包中就带有通知其他节点提交命令的消息，其他节点收到Leader的消息后，就将命令应用到状态机中（State Machine），最终每个节点的日志都保持了一致性。
+
+  [![img](https://shuwoom.com/wp-content/uploads/2018/05/image19.png)](https://shuwoom.com/wp-content/uploads/2018/05/image19.png)
+
+可以看到日志的提交过程有点类似两阶段提交(2PC)，不过与2PC的区别在于，leader只需要大多数（majority）节点的回复即可，这样只要超过一半节点处于工作状态则系统就是可用的。
+
+那么日志在每个节点上是什么样子的呢
+
+![1089769-20181216202309906-1698663454.png](https://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/e9af7b04e1294f089acd4785e721f765~tplv-k3u1fbpfcp-zoom-in-crop-mark:1304:0:0:0.awebp?)
+
+每个log entry都存储着一条用于状态机的指令，同时保存从leader收到该entry时的 ***term*** 号以及一个 ***index*** 指明自己在log中的位置。
+
+### 网络分区下保持一致性
+
+如下图，我们将分布式网络分割为两个子网，分别是子网络AB和子网络CDE，此时节点B是Leader节点。
+
+[![img](https://shuwoom.com/wp-content/uploads/2018/05/image17.png)](https://shuwoom.com/wp-content/uploads/2018/05/image17.png)
+
+然而由于网络分区导致子网1不存在Leader节点，此时，C、D和E节点由于没有收到Leader节点的心跳，导致选举定时器超时从而进入Candidate状态，开始进行领导人选举。
+
+[![img](https://shuwoom.com/wp-content/uploads/2018/05/image6-3.png)](https://shuwoom.com/wp-content/uploads/2018/05/image6-3.png)
+
+这时，我们假设C节点赢得选举，成为子网1的Leader节点。
+
+[![img](https://shuwoom.com/wp-content/uploads/2018/05/network_split.png)](https://shuwoom.com/wp-content/uploads/2018/05/network_split.png)
+
+此时，如果两个子网有Client节点分别向各个子网的Leader节点提交数据（如：X←3），由于子网2中Leader节点B不可能复制到大部分节点，所以其X←3命令会一直处于“uncomitted”状态。而子网1由于成功复制给大部分节点，所以X←3最终在子网1达成共识，如下图所示。
+
+[![img](https://shuwoom.com/wp-content/uploads/2018/05/image13.png)](https://shuwoom.com/wp-content/uploads/2018/05/image13.png)
+
+我们假设，子网1经过多次选举和数据交互，最终子网1的日志状态如下图所示：
+
+[![img](https://shuwoom.com/wp-content/uploads/2018/05/image20.png)](https://shuwoom.com/wp-content/uploads/2018/05/image20.png)
+
+而此时，分区隔离状态消失。Leader C和Leader B分别会发送心跳请求，最终Leader B发现Leader C选票比自己更多，从而转换为Follower状态。而通过日志复制（Log Replication），最终所有节点日志达成一直，如下图。
+
+[![img](https://shuwoom.com/wp-content/uploads/2018/05/image9-3.png)](https://shuwoom.com/wp-content/uploads/2018/05/image9-3.png)
+
+## 面临的问题
+
+对于多数大型互联网应用的场景，主机众多、部署分散，而且现在的集群规模越来越大，所 以节点故障、网络故障是常态，而且要保证服务可用性达到 99.99999%(N 个 9)，即保证 P和A，舍弃C（强一致）。
+
+## **BASE** 理论
+
+是对 CAP 理论的延伸，思想是即使无法做到强一致性(CAP 的一致性就是强一致性)，但可以采用适当的采取弱一致性，即最终一致性
+
+BASE 是指
+
+- 基本可用(Basically Available)
+  - 基本可用是指分布式系统在出现故障的时候，允许损失部分可用性(例如响应时间、 功能上的可用性)，允许损失部分可用性。需要注意的是，基本可用绝不等价于系 统不可用。
+    - 响应时间上的损失:正常情况下搜索引擎需要在 0.5 秒之内返回给用户相应的查询结果，但由于出现故障(比如系统部分机房发生断电或断网故障)，查询结果的响应时间增加到了 1~2 秒。
+    - 功能上的损失:购物网站在购物高峰(如双十一)时，为了保护系统的稳定性，部分消费者可能会被引导到一个降级页面。
+
+- 软状态( Soft State)
+  - 软状态是指允许系统存在中间状态，而该中间状态不会影响系统整体可用性。分布 式存储中一般一份数据会有多个副本，允许不同副本同步的延时就是软状态的体 现。mysql replication 的异步复制也是一种体现。
+
+- 最终一致性( Eventual Consistency)
+  - 最终一致性是指系统中的所有数据副本经过一定时间后，最终能够达到一致的状态。弱一致性和强一致性相反，最终一致性是弱一致性的一种特殊情况
+
+## 强一致性、弱一致性、最终一致性
+
+从客户端角度，多进程并发访问时，更新过的数据在不同进程如何获取的不同策略，决定了 不同的一致性。对于关系型数据库，要求更新过的数据能被后续的访问都能看到，这是强一 致性。如果能容忍后续的部分或者全部访问不到，则是弱一致性。如果经过一段时间后要求 能访问到更新后的数据，则是最终一致性
+
+## 【分布式事务方案】**2PC** 模式
+
+数据库支持的 2PC【2 phase commit 二阶提交】，又叫做 XA Transactions。 MySQL 从 5.5 版本开始支持，SQL Server 2005 开始支持，Oracle 7 开始支持。 其中，XA 是一个两阶段提交协议，该协议分为以下两个阶段:
+
+第一阶段:事务协调器要求每个涉及到事务的数据库预提交(precommit)此操作，并反映是 否可以提交
+
+第二阶段:事务协调器要求每个数据库提交数据。 其中，如果有任何一个数据库否决此次提交，那么所有数据库都会被要求回滚它们在此事务 中的那部分信息。
+
+![](./docs/assets/251.png)
+
+- XA协议比较简单，而且一旦商业数据库实现了XA协议，使用分布式事务的成本也比较 低。
+
+- **XA**性能不理想，特别是在交易下单链路，往往并发量很高，XA无法满足高并发场景
+
+- XA目前在商业数据库支持的比较理想，在**mysql**数据库中支持的不太理想，mysql的
+
+  XA 实现，没有记录 prepare 阶段日志，主备切换回导致主库与备库数据不一致。
+
+- 许多nosql也没有支持XA，这让XA的应用场景变得非常狭隘。
+
+- 也有3PC，引入了超时机制(无论协调者还是参与者，在向对方发送请求后，若长时间未收到回应则做出相应处理)
+
+## 【分布式事务方案】柔性事务**-TCC** 事务补偿型方案
+
+刚性事务:遵循 ACID 原则，强一致性。
+柔性事务:遵循 BASE 理论，最终一致性; 
+
+与刚性事务不同，柔性事务允许一定时间内，不同节点的数据不一致，但要求最终一致
+
+![](./docs/assets/252.png)
+
+一阶段 prepare 行为:调用 自定义 的 prepare 逻辑。
+ 二阶段 commit 行为:调用 自定义 的 commit 逻辑。
+ 二阶段 rollback 行为:调用 自定义 的 rollback 逻辑。
+ 所谓 TCC 模式，是指支持把 自定义 的分支事务纳入到全局事务的管理中
+
+TCC相当于3PC的手动版。3PC自动准备数据、预提交、回滚
+
+![](./docs/assets/253.png)
+
+## 【分布式事务方案】柔性事务**-**最大努力通知型方案
+
+按规律进行通知，不保证数据一定能通知成功，但会提供可查询操作接口进行核对。这种 方案主要用在与第三方系统通讯时，比如:调用微信或支付宝支付后的支付结果通知。这种 方案也是结合 MQ 进行实现，例如:通过 MQ 发送 http 请求，设置最大通知次数。达到通 知次数后即不再通知。
+
+案例:银行通知、商户通知等(各大交易业务平台间的商户通知:多次通知、查询校对、对 账文件)，支付宝的支付成功异步回调
+
+## 【分布式事务方案】柔性事务**-**可靠消息**+**最终一致性方案(异步确保型)
+
+实现:业务处理服务在业务事务提交之前，向实时消息服务请求发送消息，实时消息服务只 记录消息数据，而不是真正的发送。业务处理服务在业务事务提交之后，向实时消息服务确 认发送。只有在得到确认发送指令后，实时消息服务才会真正发送。
+
+## Seata
+
+### 简介
+
+https://seata.io/zh-cn/docs/overview/what-is-seata.html
+
+https://seata.io/zh-cn/docs/user/quickstart.html
+
+https://www.cnblogs.com/chengxy-nds/p/14046856.html
+
+Seata 是一款开源的分布式事务解决方案，致力于提供高性能和简单易用的分布式事务服务。Seata 将为用户提供了 AT、TCC、SAGA 和 XA 事务模式，为用户打造一站式的分布式解决方案。 
+
+![](./docs/assets/255.png)
+
+- TC (Transaction Coordinator) - 事务协调者
+
+  维护全局和分支事务的状态，驱动全局事务提交或回滚。
+
+  全局事务协调者，用来协调全局事务和各个分支事务（不同服务）的状态， 驱动全局事务和各个分支事务的回滚或提交
+
+- TM (Transaction Manager) - 事务管理器
+
+​		定义全局事务的范围：开始全局事务、提交或回滚全局事务。
+
+​		事务管理者，业务层中用来开启/提交/回滚一个整体事务（在调用服务的方法中用注解开启事务）。
+
+- RM (Resource Manager) - 资源管理器
+
+​		管理分支事务处理的资源，与TC交谈以注册分支事务和报告分支事务的状态，并驱动分支事务提交或回滚。
+
+​		资源管理者，一般指业务数据库代表了一个分支事务（`Branch Transaction`），管理分支事务与 `TC` 进行协调注册分支事务并且汇报分支事务的状态，驱动分支事务的提交或回滚。
+
+AT模式，不用像TCC那样自己写回滚代码
+
+> Seata 实现分布式事务，设计了一个关键角色 `UNDO_LOG` （回滚日志记录表），我们在每个应用分布式事务的业务库中创建这张表，这个表的核心作用就是，将业务数据在更新前后的数据镜像组织成回滚日志，备份在 `UNDO_LOG` 表中，以便业务异常能随时回滚。
+
+SEATA AT 模式需要 `UNDO_LOG` 表
+
+```sql
+-- 注意此处0.3.0+ 增加唯一索引 ux_undo_log
+CREATE TABLE `undo_log` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `branch_id` bigint(20) NOT NULL,
+  `xid` varchar(100) NOT NULL,
+  `context` varchar(128) NOT NULL,
+  `rollback_info` longblob NOT NULL,
+  `log_status` int(11) NOT NULL,
+  `log_created` datetime NOT NULL,
+  `log_modified` datetime NOT NULL,
+  `ext` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_undo_log` (`xid`,`branch_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+```
+
+所有业务数据库都生成一个undo_log表
+
+### 使用seata解决分布式事务问题
+
+```
+*  Seata控制分布式事务
+*  1）、每一个微服务先必须创建 undo_log；
+*  2）、安装事务协调器；seata-server： https://github.com/seata/seata/releases
+*  3）、整合
+*      1、导入依赖 spring-cloud-starter-alibaba-seata  seata-all-1.3.0
+*      2、解压并启动seata-server；
+*          registry.conf: 注册中心配置； 修改registry type=nacos
+*          file.conf：
+*      3、所有想要用到分布式事务的微服务使用seata DataSourceProxy代理自己的数据源
+*      4、每个微服务（订单服务、库存服务），都必须导入
+*              registry.conf
+*              file.conf  vgroup_mapping.{application.name}-fescar-service-group = "default"
+*      5、启动测试分布式事务
+*      6、给分布式大事务的入口标注@GlobalTransactional
+*      7、每一个远程的小事务用 @Transactional
+```
+
+导入依赖
+
+```xml
+<dependency>
+    <groupId>com.alibaba.cloud</groupId>
+    <artifactId>spring-cloud-starter-alibaba-seata</artifactId>
+</dependency>
+```
+
+环境搭建
+
+docker部署seata-server：https://seata.io/zh-cn/docs/ops/deploy-by-docker.html
+
+https://blog.csdn.net/github_38924695/article/details/108998782
+
+```shell
+$ docker run -d --restart always  --name  seata-server -p 8091:8091  -v /mydata/seata/config/seata-server:/seata-server -e SEATA_IP=xxx -e SEATA_PORT=8091 seataio/seata-server:1.3.0
+```
+
+下载senta-server-1.3.0并修改`register.conf`,使用nacos作为注册中心
+
+```
+registry {
+  # file 、nacos 、eureka、redis、zk、consul、etcd3、sofa
+  type = "nacos"
+
+  nacos {
+    serverAddr = "#:8848"
+    namespace = "public"
+    cluster = "default"
+  }
+```
+
+![](./docs/assets/256.png)
+
+将`register.conf`和`file.conf`复制到需要开启分布式事务的根目录，并修改`file.conf`
+
+```
+vgroup_mapping.${application.name}-fescar-service-group = "default"
+service {
+  #vgroup->rgroup
+  vgroup_mapping.gulimall-ware-fescar-service-group = "default"
+  #only support single node
+  default.grouplist = "127.0.0.1:8091"
+  #degrade current not support
+  enableDegrade = false
+  #disable
+  disable = false
+  #unit ms,s,m,h,d represents milliseconds, seconds, minutes, hours, days, default permanent
+  max.commit.retry.timeout = "-1"
+  max.rollback.retry.timeout = "-1"
+}
+```
+
+使用seata包装数据源
+
+```
+@Configuration
+public class MySeataConfig {
+    @Autowired
+    DataSourceProperties dataSourceProperties;
+
+    @Bean
+    public DataSource dataSource(DataSourceProperties dataSourceProperties) {
+
+        HikariDataSource dataSource = dataSourceProperties.initializeDataSourceBuilder().type(HikariDataSource.class).build();
+        if (StringUtils.hasText(dataSourceProperties.getName())) {
+            dataSource.setPoolName(dataSourceProperties.getName());
+        }
+        return new DataSourceProxy(dataSource);
+    }
+}
+```
+
+在大事务的入口标记注解`@GlobalTransactional`开启全局事务，并且每个小事务标记注解`@Transactional`
+
+```
+@GlobalTransactional
+@Transactional
+@Override
+public SubmitOrderResponseVo submitOrder(OrderSubmitVo submitVo) {
+}
+```
+
+### Seata AT模式（类似2PC）
+
+https://seata.io/zh-cn/docs/overview/what-is-seata.html
+
+#### 前提
+
+- 基于支持本地 ACID 事务的关系型数据库。
+- Java 应用，通过 JDBC 访问数据库。
+
+#### 整体机制
+
+两阶段提交协议的演变：
+
+- 一阶段：业务数据和回滚日志记录在同一个本地事务中提交，释放本地锁和连接资源。
+- 二阶段：
+  - 提交异步化，非常快速地完成。
+  - 回滚通过一阶段的回滚日志进行反向补偿。
+
+#### 写隔离
+
+- 一阶段本地事务提交前，需要确保先拿到 **全局锁** 。
+- 拿不到 **全局锁** ，不能提交本地事务。
+- 拿 **全局锁** 的尝试被限制在一定范围内，超出范围将放弃，并回滚本地事务，释放本地锁。
+
+以一个示例来说明：
+
+两个全局事务 tx1 和 tx2，分别对 a 表的 m 字段进行更新操作，m 的初始值 1000。
+
+tx1 先开始，开启本地事务，拿到本地锁，更新操作 m = 1000 - 100 = 900。本地事务提交前，先拿到该记录的 **全局锁** ，本地提交释放本地锁。 tx2 后开始，开启本地事务，拿到本地锁，更新操作 m = 900 - 100 = 800。本地事务提交前，尝试拿该记录的 **全局锁** ，tx1 全局提交前，该记录的全局锁被 tx1 持有，tx2 需要重试等待 **全局锁** 。
+
+![Write-Isolation: Commit](https://img.alicdn.com/tfs/TB1zaknwVY7gK0jSZKzXXaikpXa-702-521.png)
+
+tx1 二阶段全局提交，释放 **全局锁** 。tx2 拿到 **全局锁** 提交本地事务。
+
+![Write-Isolation: Rollback](https://img.alicdn.com/tfs/TB1xW0UwubviK0jSZFNXXaApXXa-718-521.png)
+
+如果 tx1 的二阶段全局回滚，则 tx1 需要重新获取该数据的本地锁，进行反向补偿的更新操作，实现分支的回滚。
+
+此时，如果 tx2 仍在等待该数据的 **全局锁**，同时持有本地锁，则 tx1 的分支回滚会失败。分支的回滚会一直重试，直到 tx2 的 **全局锁** 等锁超时，放弃 **全局锁** 并回滚本地事务释放本地锁，tx1 的分支回滚最终成功。
+
+因为整个过程 **全局锁** 在 tx1 结束前一直是被 tx1 持有的，所以不会发生 **脏写** 的问题。
+
+#### 读隔离
+
+在数据库本地事务隔离级别 **读已提交（Read Committed）** 或以上的基础上，Seata（AT 模式）的默认全局隔离级别是 **读未提交（Read Uncommitted）** 。
+
+如果应用在特定场景下，必需要求全局的 **读已提交** ，目前 Seata 的方式是通过 SELECT FOR UPDATE 语句的代理。
+
+![Read Isolation: SELECT FOR UPDATE](https://img.alicdn.com/tfs/TB138wuwYj1gK0jSZFuXXcrHpXa-724-521.png)
+
+SELECT FOR UPDATE 语句的执行会申请 **全局锁** ，如果 **全局锁** 被其他事务持有，则释放本地锁（回滚 SELECT FOR UPDATE 语句的本地执行）并重试。这个过程中，查询是被 block 住的，直到 **全局锁** 拿到，即读取的相关数据是 **已提交** 的，才返回。
+
+出于总体性能上的考虑，Seata 目前的方案并没有对所有 SELECT 语句都进行代理，仅针对 FOR UPDATE 的 SELECT 语句。
+
+#### 工作机制
+
+以一个示例来说明整个 AT 分支的工作过程。
+
+业务表：`product`
+
+| Field | Type         | Key  |
+| ----- | ------------ | ---- |
+| id    | bigint(20)   | PRI  |
+| name  | varchar(100) |      |
+| since | varchar(100) |      |
+
+AT 分支事务的业务逻辑：
+
+```sql
+update product set name = 'GTS' where name = 'TXC';
+```
+
+#### 一阶段
+
+过程：
+
+1. 解析 SQL：得到 SQL 的类型（UPDATE），表（product），条件（where name = 'TXC'）等相关的信息。
+2. 查询前镜像：根据解析得到的条件信息，生成查询语句，定位数据。
+
+```sql
+select id, name, since from product where name = 'TXC';
+```
+
+得到前镜像：
+
+| id   | name | since |
+| ---- | ---- | ----- |
+| 1    | TXC  | 2014  |
+
+1. 执行业务 SQL：更新这条记录的 name 为 'GTS'。
+2. 查询后镜像：根据前镜像的结果，通过 **主键** 定位数据。
+
+```sql
+select id, name, since from product where id = 1;
+```
+
+得到后镜像：
+
+| id   | name | since |
+| ---- | ---- | ----- |
+| 1    | GTS  | 2014  |
+
+1. 插入回滚日志：把前后镜像数据以及业务 SQL 相关的信息组成一条回滚日志记录，插入到 `UNDO_LOG` 表中。
+
+```json
+{
+	"branchId": 641789253,
+	"undoItems": [{
+		"afterImage": {
+			"rows": [{
+				"fields": [{
+					"name": "id",
+					"type": 4,
+					"value": 1
+				}, {
+					"name": "name",
+					"type": 12,
+					"value": "GTS"
+				}, {
+					"name": "since",
+					"type": 12,
+					"value": "2014"
+				}]
+			}],
+			"tableName": "product"
+		},
+		"beforeImage": {
+			"rows": [{
+				"fields": [{
+					"name": "id",
+					"type": 4,
+					"value": 1
+				}, {
+					"name": "name",
+					"type": 12,
+					"value": "TXC"
+				}, {
+					"name": "since",
+					"type": 12,
+					"value": "2014"
+				}]
+			}],
+			"tableName": "product"
+		},
+		"sqlType": "UPDATE"
+	}],
+	"xid": "xid:xxx"
+}
+```
+
+1. 提交前，向 TC 注册分支：申请 `product` 表中，主键值等于 1 的记录的 **全局锁** 。
+2. 本地事务提交：业务数据的更新和前面步骤中生成的 UNDO LOG 一并提交。
+3. 将本地事务提交的结果上报给 TC。
+
+#### 二阶段-回滚
+
+1. 收到 TC 的分支回滚请求，开启一个本地事务，执行如下操作。
+2. 通过 XID 和 Branch ID 查找到相应的 UNDO LOG 记录。
+3. 数据校验：拿 UNDO LOG 中的后镜与当前数据进行比较，如果有不同，说明数据被当前全局事务之外的动作做了修改。这种情况，需要根据配置策略来做处理，详细的说明在另外的文档中介绍。
+4. 根据 UNDO LOG 中的前镜像和业务 SQL 的相关信息生成并执行回滚的语句：
+
+```sql
+update product set name = 'TXC' where id = 1;
+```
+
+1. 提交本地事务。并把本地事务的执行结果（即分支事务回滚的结果）上报给 TC。
+
+#### 二阶段-提交
+
+1. 收到 TC 的分支提交请求，把请求放入一个异步任务的队列中，马上返回提交成功的结果给 TC。
+2. 异步任务阶段的分支提交请求将异步和批量地删除相应 UNDO LOG 记录。
+
+#### 回滚日志表
+
+UNDO_LOG Table：不同数据库在类型上会略有差别。
+
+以 MySQL 为例：
+
+| Field         | Type         |
+| ------------- | ------------ |
+| branch_id     | bigint PK    |
+| xid           | varchar(100) |
+| context       | varchar(128) |
+| rollback_info | longblob     |
+| log_status    | tinyint      |
+| log_created   | datetime     |
+| log_modified  | datetime     |
+
+```sql
+-- 注意此处0.7.0+ 增加字段 context
+CREATE TABLE `undo_log` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `branch_id` bigint(20) NOT NULL,
+  `xid` varchar(100) NOT NULL,
+  `context` varchar(128) NOT NULL,
+  `rollback_info` longblob NOT NULL,
+  `log_status` int(11) NOT NULL,
+  `log_created` datetime NOT NULL,
+  `log_modified` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_undo_log` (`xid`,`branch_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+```
+
+###  后台管理系统涉及的Seata应用
+
+Seata不适用高并发，有很多锁，串行化了
+
+使用场景：后台管理系统新增spu，除了本地商品服务的事务，还有保存优惠券、积分信息，这里可以适合seata的AT模式来处理分布式事务问题
+
+## 使用消息队列实现最终一致性
+
+高并发下，就不考虑2pc模式、TCC了，下单这里我们考虑用可靠消息+最终一致性方案
+
+```
+库存成功了，但是网络原因超时了，订单回滚，库存不滚。
+为了保证高并发。库存服务自己回滚。可以发消息给库存服务；
+库存服务本身也可以使用自动解锁模式  消息队列
+```
 
 
 
+### RabbitMQ延时队列（实现定时任务）
+
+- 延迟队列存储的对象肯定是对应的延时消息，所谓"延时消息"是指当消息被发送以后，并不想让消费者立即拿到消息，而是等待指定时间后，消费者才拿到这个消息进行消费。
+
+![](./docs/assets/257.png)
+
+#### 延时队列场景
+
+![](./docs/assets/258.png)
+
+#### 定时任务的时效性问题
+
+**为什么不能用定时任务完成？**
+
+如果恰好在一次扫描后完成业务逻辑，那么就会等待两个扫描周期才能扫到过期的订单，不能保证时效性
+
+![](./docs/assets/259.png)
+
+#### 消息的TTL(Time To Live)
+
+- 消息的TTL就是消息的存活时间。
+- RabbitMQ可以对队列和消息分别设置TTL。
+  - 对队列设置就是队列没有消费者连着的保留时间，也可以对每一个单独的消息做单独的 设置。超过了这个时间，我们认为这个消息就死了，称之为死信。
+  - 如果队列设置了，消息也设置了，那么会取小的。所以一个消息如果被路由到不同的队 列中，这个消息死亡的时间有可能不一样(不同的队列设置)。这里单讲单个消息的 TTL，因为它才是实现延迟任务的关键。可以通过设置消息的expiration字段或者x- message-ttl属性来设置时间，两者是一样的效果
+
+#### Dead Letter Exchanges(DLX)
+
+- 一个消息在满足如下条件下，会进死信路由，记住这里是路由而不是队列， 一个路由可以对应很多队列。(什么是死信)
+  - 一个消息被Consumer拒收了，并且reject方法的参数里requeue是false。也就是说不 会被再次放在队列里，被其他消费者使用。(*basic.reject/ basic.nack*)*requeue=false*
+  - 上面的消息的TTL到了，消息过期了。
+  - 队列的长度限制满了。排在前面的消息会被丢弃或者扔到死信路由上
+- Dead Letter Exchange其实就是一种普通的exchange，和创建其他 exchange没有两样。只是在某一个设置Dead Letter Exchange的队列中有 消息过期了，会自动触发消息的转发，发送到Dead Letter Exchange中去。
+- 我们既可以控制消息在一段时间后变成死信，又可以控制变成死信的消息 被路由到某一个指定的交换机，结合二者，其实就可以实现一个延时队列
+- 手动ack&异常消息统一放在一个队列处理建议的两种方式
+  - catch异常后，**手动发送到指定队列**，然后使用channel给rabbitmq确认消息已消费
+  - 给Queue绑定死信队列，使用nack(requque为false)确认消息消费失败
+
+![](./docs/assets/260.png)
+
+#### 延时队列实现
+
+推荐设置队列过期时间
+
+![](./docs/assets/261.png)
+
+![](./docs/assets/262.png)
+
+![](./docs/assets/263.png)
+
+- rabbitmq可以通过设置队列的`TTL`和死信路由实现延迟队列
+
+  - TTL：
+
+  > RabbitMQ可以针对Queue设置x-expires 或者 针对Message设置 x-message-ttl，来控制消息的生存时间，如果超时(两者同时设置以最先到期的时间为准)，则消息变为dead letter(死信)
+
+  - 死信路由DLX
+
+  > RabbitMQ的Queue可以配置x-dead-letter-exchange 和x-dead-letter-routing-key（可选）两个参数，如果队列内出现了dead letter，则按照这两个参数重新路由转发到指定的队列。
+
+  > - x-dead-letter-exchange：出现dead letter之后将dead letter重新发送到指定exchange
+  > - x-dead-letter-routing-key：出现dead letter之后将dead letter重新按照指定的routing-key发送
+
+![](./docs/assets/264.png)
+
+针对订单模块创建以上消息队列，创建订单时消息会被发送至队列`order.delay.queue`，经过`TTL`的时间后消息会变成死信以`order.release.order`的路由键经交换机转发至队列`order.release.order.queue`，再通过监听该队列的消息来实现过期订单的处理
+
+#### 定时关单与库存解锁主体逻辑
+
+- 订单超时未支付触发订单过期状态修改与库存解锁
+
+> 创建订单时消息会被发送至队列`order.delay.queue`，经过`TTL`的时间后消息会变成死信以`order.release.order`的路由键经交换机转发至队列`order.release.order.queue`，再通过监听该队列的消息来实现过期订单的处理
+>
+> - 如果该订单已支付，则无需处理
+> - 否则说明该订单已过期，修改该订单的状态并通过路由键`order.release.other`发送消息至队列`stock.release.stock.queue`进行库存解锁
+
+- 库存锁定后延迟检查是否需要解锁库存
+
+> 在库存锁定后通过`路由键stock.locked`发送至`延迟队列stock.delay.queue`，延迟时间到，死信通过`路由键stock.release`转发至`stock.release.stock.queue`,通过监听该队列进行判断当前订单状态，来确定库存是否需要解锁
+
+- 由于`关闭订单`和`库存解锁`都有可能被执行多次，因此要保证业务逻辑的幂等性，在执行业务是重新查询当前的状态进行判断
+- 订单关闭和库存解锁都会进行库存解锁的操作，来确保业务异常或者订单过期时库存会被可靠解锁
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-10-11_22-49-23.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-10-11_22-49-23.png)
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-10-11_22-41-45.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-10-11_22-41-45.png)
+
+#### 订单释放&库存解锁
+
+![](./docs/assets/265.png)
+
+#### 创建业务交换机和队列
+
+- 订单模块
+
+```java
+@Configuration
+public class MyRabbitmqConfig {
+    @Bean
+    public Exchange orderEventExchange() {
+        /**
+         *   String name,
+         *   boolean durable,
+         *   boolean autoDelete,
+         *   Map<String, Object> arguments
+         */
+        return new TopicExchange("order-event-exchange", true, false);
+    }
+
+    /**
+     * 延迟队列
+     * @return
+     */
+    @Bean
+    public Queue orderDelayQueue() {
+       /**
+            Queue(String name,  队列名字
+            boolean durable,  是否持久化
+            boolean exclusive,  是否排他
+            boolean autoDelete, 是否自动删除
+            Map<String, Object> arguments) 属性
+         */
+        HashMap<String, Object> arguments = new HashMap<>();
+        //死信交换机
+        arguments.put("x-dead-letter-exchange", "order-event-exchange");
+        //死信路由键
+        arguments.put("x-dead-letter-routing-key", "order.release.order");
+        arguments.put("x-message-ttl", 60000); // 消息过期时间 1分钟
+        return new Queue("order.delay.queue",true,false,false,arguments);
+    }
+
+    /**
+     * 普通队列
+     *
+     * @return
+     */
+    @Bean
+    public Queue orderReleaseQueue() {
+
+        Queue queue = new Queue("order.release.order.queue", true, false, false);
+
+        return queue;
+    }
+
+    /**
+     * 创建订单的binding
+     * @return
+     */
+    @Bean
+    public Binding orderCreateBinding() {
+        /**
+         * String destination, 目的地（队列名或者交换机名字）
+         * DestinationType destinationType, 目的地类型（Queue、Exhcange）
+         * String exchange,
+         * String routingKey,
+         * Map<String, Object> arguments
+         * */
+        return new Binding("order.delay.queue", Binding.DestinationType.QUEUE, "order-event-exchange", "order.create.order", null);
+    }
+
+    @Bean
+    public Binding orderReleaseBinding() {
+        return new Binding("order.release.order.queue",
+                Binding.DestinationType.QUEUE,
+                "order-event-exchange",
+                "order.release.order",
+                null);
+    }
+
+    @Bean
+    public Binding orderReleaseOrderBinding() {
+        return new Binding("stock.release.stock.queue",
+                Binding.DestinationType.QUEUE,
+                "order-event-exchange",
+                "order.release.other.#",
+                null);
+    }
+}
+```
+
+- 库存模块
+
+```java
+@Configuration
+public class MyRabbitmqConfig {
+
+    @Bean
+    public Exchange stockEventExchange() {
+        return new TopicExchange("stock-event-exchange", true, false);
+    }
+
+    /**
+     * 延迟队列
+     * @return
+     */
+    @Bean
+    public Queue stockDelayQueue() {
+        HashMap<String, Object> arguments = new HashMap<>();
+        arguments.put("x-dead-letter-exchange", "stock-event-exchange");
+        arguments.put("x-dead-letter-routing-key", "stock.release");
+        // 消息过期时间 2分钟
+        arguments.put("x-message-ttl", 120000);
+        return new Queue("stock.delay.queue", true, false, false, arguments);
+    }
+
+    /**
+     * 普通队列，用于解锁库存
+     * @return
+     */
+    @Bean
+    public Queue stockReleaseStockQueue() {
+        return new Queue("stock.release.stock.queue", true, false, false, null);
+    }
 
 
+    /**
+     * 交换机和延迟队列绑定
+     * @return
+     */
+    @Bean
+    public Binding stockLockedBinding() {
+        return new Binding("stock.delay.queue",
+                Binding.DestinationType.QUEUE,
+                "stock-event-exchange",
+                "stock.locked",
+                null);
+    }
 
+    /**
+     * 交换机和普通队列绑定
+     * @return
+     */
+    @Bean
+    public Binding stockReleaseBinding() {
+        return new Binding("stock.release.stock.queue",
+                Binding.DestinationType.QUEUE,
+                "stock-event-exchange",
+                "stock.release.#",
+                null);
+    }
+}
+```
 
+#### 库存自动解锁
 
+##### 1）库存锁定
 
+在库存锁定是添加以下逻辑
 
+- 由于可能订单回滚的情况，所以为了能够得到库存锁定的信息，在锁定时需要记录库存工作单，其中包括订单信息和锁定库存时的信息(仓库id，商品id，锁了几件...)
+- 在锁定成功后，向延迟队列发消息，带上库存锁定的相关信息
 
+```
+@Transactional
+@Override
+public Boolean orderLockStock(WareSkuLockVo wareSkuLockVo) {
+    //因为可能出现订单回滚后，库存锁定不回滚的情况，但订单已经回滚，得不到库存锁定信息，因此要有库存工作单
+    WareOrderTaskEntity taskEntity = new WareOrderTaskEntity();
+    taskEntity.setOrderSn(wareSkuLockVo.getOrderSn());
+    taskEntity.setCreateTime(new Date());
+    wareOrderTaskService.save(taskEntity);
 
+    List<OrderItemVo> itemVos = wareSkuLockVo.getLocks();
+    List<SkuLockVo> lockVos = itemVos.stream().map((item) -> {
+        SkuLockVo skuLockVo = new SkuLockVo();
+        skuLockVo.setSkuId(item.getSkuId());
+        skuLockVo.setNum(item.getCount());
+        List<Long> wareIds = baseMapper.listWareIdsHasStock(item.getSkuId(), item.getCount());
+        skuLockVo.setWareIds(wareIds);
+        return skuLockVo;
+    }).collect(Collectors.toList());
 
+    for (SkuLockVo lockVo : lockVos) {
+        boolean lock = true;
+        Long skuId = lockVo.getSkuId();
+        List<Long> wareIds = lockVo.getWareIds();
+        if (wareIds == null || wareIds.size() == 0) {
+            throw new NoStockException(skuId);
+        }else {
+            for (Long wareId : wareIds) {
+                Long count=baseMapper.lockWareSku(skuId, lockVo.getNum(), wareId);
+                if (count==0){
+                    lock=false;
+                }else {
+                    //锁定成功，保存工作单详情
+                    WareOrderTaskDetailEntity detailEntity = WareOrderTaskDetailEntity.builder()
+                            .skuId(skuId)
+                            .skuName("")
+                            .skuNum(lockVo.getNum())
+                            .taskId(taskEntity.getId())
+                            .wareId(wareId)
+                            .lockStatus(1).build();
+                    wareOrderTaskDetailService.save(detailEntity);
+                    //发送库存锁定消息至延迟队列
+                    StockLockedTo lockedTo = new StockLockedTo();
+                    lockedTo.setId(taskEntity.getId());
+                    StockDetailTo detailTo = new StockDetailTo();
+                    BeanUtils.copyProperties(detailEntity,detailTo);
+                    lockedTo.setDetailTo(detailTo);
+                    rabbitTemplate.convertAndSend("stock-event-exchange","stock.locked",lockedTo);
 
+                    lock = true;
+                    break;
+                }
+            }
+        }
+        if (!lock) throw new NoStockException(skuId);
+    }
+    return true;
+}
+```
 
+##### 2）监听队列
 
+- 延迟队列会将过期的消息路由至`"stock.release.stock.queue"`,通过监听该队列实现库存的解锁
+- 为保证消息的可靠到达，我们使用手动确认消息的模式，在解锁成功后确认消息，若出现异常则重新归队
 
+```
+@Component
+@RabbitListener(queues = {"stock.release.stock.queue"})
+public class StockReleaseListener {
 
+    @Autowired
+    private WareSkuService wareSkuService;
 
+    @RabbitHandler
+    public void handleStockLockedRelease(StockLockedTo stockLockedTo, Message message, Channel channel) throws IOException {
+        log.info("************************收到库存解锁的消息********************************");
+        try {
+            wareSkuService.unlock(stockLockedTo);
+            channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
+        } catch (Exception e) {
+            channel.basicReject(message.getMessageProperties().getDeliveryTag(),true);
+        }
+    }
+}
+```
 
+##### 3）库存解锁
 
+- 如果工作单详情不为空，说明该库存锁定成功
+  - 查询最新的订单状态，如果订单不存在，说明订单提交出现异常回滚，或者订单处于已取消的状态，我们都对已锁定的库存进行解锁
+- 如果工作单详情为空，说明库存未锁定，自然无需解锁
+- 为保证幂等性，我们分别对订单的状态和工作单的状态都进行了判断，只有当订单过期且工作单显示当前库存处于锁定的状态时，才进行库存的解锁
 
+```
+ @Override
+    public void unlock(StockLockedTo stockLockedTo) {
+        StockDetailTo detailTo = stockLockedTo.getDetailTo();
+        WareOrderTaskDetailEntity detailEntity = wareOrderTaskDetailService.getById(detailTo.getId());
+        //1.如果工作单详情不为空，说明该库存锁定成功
+        if (detailEntity != null) {
+            WareOrderTaskEntity taskEntity = wareOrderTaskService.getById(stockLockedTo.getId());
+            R r = orderFeignService.infoByOrderSn(taskEntity.getOrderSn());
+            if (r.getCode() == 0) {
+                OrderTo order = r.getData("order", new TypeReference<OrderTo>() {
+                });
+                //没有这个订单||订单状态已经取消 解锁库存
+                if (order == null||order.getStatus()== OrderStatusEnum.CANCLED.getCode()) {
+                    //为保证幂等性，只有当工作单详情处于被锁定的情况下才进行解锁
+                    if (detailEntity.getLockStatus()== WareTaskStatusEnum.Locked.getCode()){
+                        unlockStock(detailTo.getSkuId(), detailTo.getSkuNum(), detailTo.getWareId(), detailEntity.getId());
+                    }
+                }
+            }else {
+                throw new RuntimeException("远程调用订单服务失败");
+            }
+        }else {
+            //无需解锁
+        }
+    }
+```
 
+#### 定时关单
 
+##### 1) 提交订单
 
+```
+@Transactional
+@Override
+public SubmitOrderResponseVo submitOrder(OrderSubmitVo submitVo) {
 
+    //提交订单的业务处理。。。
+    
+    //发送消息到订单延迟队列，判断过期订单
+    rabbitTemplate.convertAndSend("order-event-exchange","order.create.order",order.getOrder());
 
+               
+}
+```
 
+##### 2) 监听队列
 
+创建订单的消息会进入延迟队列，最终发送至队列`order.release.order.queue`，因此我们对该队列进行监听，进行订单的关闭
 
+```
+@Component
+@RabbitListener(queues = {"order.release.order.queue"})
+public class OrderCloseListener {
 
+    @Autowired
+    private OrderService orderService;
 
+    @RabbitHandler
+    public void listener(OrderEntity orderEntity, Message message, Channel channel) throws IOException {
+        System.out.println("收到过期的订单信息，准备关闭订单" + orderEntity.getOrderSn());
+        long deliveryTag = message.getMessageProperties().getDeliveryTag();
+        try {
+            orderService.closeOrder(orderEntity);
+            channel.basicAck(deliveryTag,false);
+        } catch (Exception e){
+            channel.basicReject(deliveryTag,true);
+        }
 
+    }
+}
+```
 
+##### 3) 关闭订单
 
+- 由于要保证幂等性，因此要查询最新的订单状态判断是否需要关单
+- 关闭订单后也需要解锁库存，因此发送消息进行库存、会员服务对应的解锁
 
+```
+@Override
+public void closeOrder(OrderEntity orderEntity) {
+    //因为消息发送过来的订单已经是很久前的了，中间可能被改动，因此要查询最新的订单
+    OrderEntity newOrderEntity = this.getById(orderEntity.getId());
+    //如果订单还处于新创建的状态，说明超时未支付，进行关单
+    if (newOrderEntity.getStatus() == OrderStatusEnum.CREATE_NEW.getCode()) {
+        OrderEntity updateOrder = new OrderEntity();
+        updateOrder.setId(newOrderEntity.getId());
+        updateOrder.setStatus(OrderStatusEnum.CANCLED.getCode());
+        this.updateById(updateOrder);
 
+        //关单后发送消息通知其他服务进行关单相关的操作，如解锁库存
+        OrderTo orderTo = new OrderTo();
+        BeanUtils.copyProperties(newOrderEntity,orderTo);
+        rabbitTemplate.convertAndSend("order-event-exchange", "order.release.other",orderTo);
+    }
+}
+```
 
+##### 4) 解锁库存
 
+```
+@Slf4j
+@Component
+@RabbitListener(queues = {"stock.release.stock.queue"})
+public class StockReleaseListener {
 
+    @Autowired
+    private WareSkuService wareSkuService;
 
+    @RabbitHandler
+    public void handleStockLockedRelease(StockLockedTo stockLockedTo, Message message, Channel channel) throws IOException {
+        log.info("************************收到库存解锁的消息********************************");
+        try {
+            wareSkuService.unlock(stockLockedTo);
+            channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
+        } catch (Exception e) {
+            channel.basicReject(message.getMessageProperties().getDeliveryTag(),true);
+        }
+    }
 
+    @RabbitHandler
+    public void handleStockLockedRelease(OrderTo orderTo, Message message, Channel channel) throws IOException {
+        log.info("************************从订单模块收到库存解锁的消息********************************");
+        try {
+            wareSkuService.unlock(orderTo);
+            channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
+        } catch (Exception e) {
+            channel.basicReject(message.getMessageProperties().getDeliveryTag(),true);
+        }
+    }
+}
+@Override
+public void unlock(OrderTo orderTo) {
+    //为防止重复解锁，需要重新查询工作单
+    String orderSn = orderTo.getOrderSn();
+    WareOrderTaskEntity taskEntity = wareOrderTaskService.getBaseMapper().selectOne((new QueryWrapper<WareOrderTaskEntity>().eq("order_sn", orderSn)));
+    //查询出当前订单相关的且处于锁定状态的工作单详情
+    List<WareOrderTaskDetailEntity> lockDetails = wareOrderTaskDetailService.list(new QueryWrapper<WareOrderTaskDetailEntity>().eq("task_id", taskEntity.getId()).eq("lock_status", WareTaskStatusEnum.Locked.getCode()));
+    for (WareOrderTaskDetailEntity lockDetail : lockDetails) {
+        unlockStock(lockDetail.getSkuId(),lockDetail.getSkuNum(),lockDetail.getWareId(),lockDetail.getId());
+    }
+}
+```
+
+#### 如何保证消息可靠性-消息丢失
+
+![](./docs/assets/266.png)
+
+日志记录表，每条发出去消息都做好记录，以防止消息丢失，定期扫描数据库把失败的消息再发一次
+
+```sql
+CREATE TABLE `mq_message` (
+`message_id` char(32) NOT NULL,
+`content` text,
+`to_exchane` varchar(255) DEFAULT NULL,
+`routing_key` varchar(255) DEFAULT NULL,
+`class_type` varchar(255) DEFAULT NULL,
+`message_status` int(1) DEFAULT '0' COMMENT '0-新建 1-已发送 2-错误抵达 3-已抵达', `create_time` datetime DEFAULT NULL,
+`update_time` datetime DEFAULT NULL,
+PRIMARY KEY (`message_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+```
+
+新增消息微服务
+
+#### 如何保证消息可靠性-消息重复
+
+![](./docs/assets/267.png)
+
+#### 如何保证消息可靠性-消息积压
+
+![](./docs/assets/268.png)
 
 
 

@@ -33,7 +33,7 @@ public class EshopblvdElasticSearchConfig {
      */
     @Bean
     public RestHighLevelClient esRestClient() {
-        RestClientBuilder builder = RestClient.builder(new HttpHost("124.222.187.180", 9200, "http"));
+        RestClientBuilder builder = RestClient.builder(new HttpHost("xxx", 9200, "http"));
         RestHighLevelClient restHighLevelClient = new RestHighLevelClient(builder);
         return restHighLevelClient;
     }

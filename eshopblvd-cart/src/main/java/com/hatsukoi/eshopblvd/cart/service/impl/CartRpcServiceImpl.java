@@ -43,7 +43,7 @@ public class CartRpcServiceImpl implements CartService {
     WareSkuRPCService wareSkuRPCService;
 
     /**
-     * 获取当前用户购物车的购物项列表
+     * 获取当前用户购物车的购物项列表（封装成order项）
      * @param userId
      * @return
      */
@@ -101,7 +101,12 @@ public class CartRpcServiceImpl implements CartService {
             List<CartItemVO> collect = values.stream().map((obj) -> {
                 String str = (String) obj;
                 CartItemVO cartItem = JSON.parseObject(str, CartItemVO.class);
-                return cartItem;
+                // 只返回被选中的购物项
+                if (cartItem.getCheck()) {
+                    return cartItem;
+                } else {
+                    return null;
+                }
             }).collect(Collectors.toList());
             return collect;
         }

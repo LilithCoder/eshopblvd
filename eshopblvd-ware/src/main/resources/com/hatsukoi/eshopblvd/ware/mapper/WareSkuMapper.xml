@@ -214,6 +214,10 @@
   <select id="getSkuStock" resultType="java.lang.Long">
     SELECT SUM(stock - stock_locked) FROM `wms_ware_sku` WHERE sku_id=#{skuId}
   </select>
+  <select id="getWareIdsByLock" resultType="java.lang.Long">
+    SELECT ware_id FROM `wms_ware_sku`
+    WHERE sku_id=#{lock.skuId} AND stock-stock_locked>=#{lock.count}
+  </select>
   <update id="updateByExampleSelective" parameterType="map">
     <!--
       WARNING - @mbg.generated
@@ -297,5 +301,16 @@
       sku_name = #{skuName,jdbcType=VARCHAR},
       stock_locked = #{stockLocked,jdbcType=INTEGER}
     where id = #{id,jdbcType=BIGINT}
+  </update>
+  <update id="lockSkuStock">
+    UPDATE `wms_ware_sku`
+    SET stock_locked=stock_locked+#{count}
+    WHERE sku_id=#{skuId} AND
+          ware_id=#{wareId} AND
+          stock-stock_locked>=#{count}
+  </update>
+  <update id="unlockStock">
+    UPDATE `wms_ware_sku` SET stock_locked=stock_locked-#{skuNum}
+    WHERE sku_id=#{skuId} AND ware_id=#{wareId}
   </update>
 </mapper>
