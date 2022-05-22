@@ -3550,9 +3550,385 @@ PRIMARY KEY (`message_id`)
 
 ![](./docs/assets/268.png)
 
+# 订单支付
 
+1、进入“蚂蚁金服开放平台
 
+” https://open.alipay.com/platform/home.htm
 
+2、下载支付宝官方 demo，进行配置和测试 
+
+文档地址
+
+https://open.alipay.com/platform/home.htm 支付宝&蚂蚁金服开发者平台
+
+https://docs.open.alipay.com/catalog 开发者文档
+
+https://docs.open.alipay.com/270/106291/ 全部文档=>电脑网站支付文档;下载 demo
+
+3、配置使用沙箱进行测试
+
+- 使用 RSA 工具生成签名
+- 下载沙箱版钱包
+- 运行官方 demo 进行测试
+
+#### (1) 支付宝加密原理
+
+![](./docs/assets/270.png)
+
+![](./docs/assets/271.png)
+
+##### 什么是公钥、私钥、加密、签名和验签?
+
+1、公钥私钥
+ 公钥和私钥是一个相对概念 它们的公私性是相对于生成者来说的。 一对密钥生成后，保存在生成者手里的就是私钥， 生成者发布出去大家用的就是公钥
+
+2、加密和数字签名
+
+- 加密是指:
+  - 我们使用一对公私钥中的一个密钥来对数据进行加密，而使用另一个密钥来进行解 密的技术。
+  - 公钥和私钥都可以用来加密，也都可以用来解密。
+  - 但这个加解密必须是一对密钥之间的互相加解密，否则不能成功。
+  - 加密的目的是:
+    - 为了确保数据传输过程中的不可读性，就是不想让别人看到。
+
+- 签名:
+  - 给我们将要发送的数据，做上一个唯一签名(类似于指纹)
+  - 用来互相验证接收方和发送方的身份;
+  - 在验证身份的基础上再验证一下传递的数据是否被篡改过。因此使用数字签名可以用来达到数据的明文传输。
+
+- 验签
+  - 支付宝为了验证请求的数据是否商户本人发的
+  - 商户为了验证响应的数据是否支付宝发的
+
+- 支付宝加密采用RSA非对称加密，分别在商户端和支付宝端有两对公钥和私钥
+- 在发送订单数据时，直接使用明文，但会使用`商户私钥`加一个对应的签名，支付宝端会使用`商户公钥`对签名进行验签，只有数据明文和签名对应的时候才能说明传输正确
+- 支付成功后，支付宝发送支付成功数据之外，还会使用`支付宝私钥`加一个对应的签名，商户端收到支付成功数据之后也会使用`支付宝公钥`延签，成功后才能确认
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-10-18_11-24-26.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-10-18_11-24-26.png)
+
+#### (2) 配置支付宝沙箱环境
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-10-18_11-32-51.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-10-18_11-32-51.png)
+
+#### 内网穿透
+
+![](./docs/assets/272.png)
+
+![](./docs/assets/273.png)
+
+- 简介
+
+内网穿透功能可以允许我们使用外网的网址来访问主机; 正常的外网需要访问我们项目的流程是: 1、买服务器并且有公网固定 IP 2、买域名映射到服务器的 IP 3、域名需要进行备案和审核
+
+- 使用场景
+
+1、开发测试(微信、支付宝) 
+
+2、智慧互联
+
+3、远程控制
+
+4、私有云
+
+- 内网穿透的几个常用软件
+
+1、natapp:https://natapp.cn/
+
+2、续断:www.zhexi.tech
+
+3、花生壳:https://www.oray.com/
+
+#### (3) 环境搭建
+
+导入支付宝sdk
+
+```
+<dependency>
+    <groupId>com.alipay.sdk</groupId>
+    <artifactId>alipay-sdk-java</artifactId>
+    <version>4.9.28.ALL</version>
+</dependency>
+```
+
+抽取支付工具类并进行配置
+
+成功调用该接口后，返回的数据就是支付页面的html，因此后续会使用`@ResponseBody`
+
+```
+@ConfigurationProperties(prefix = "alipay")
+@Component
+@Data
+public class AlipayTemplate {
+
+    //在支付宝创建的应用的id
+    private   String app_id = "2016102600763190";
+
+    // 商户私钥，您的PKCS8格式RSA2私钥
+    private String merchant_private_key = "MjXN6Hnj8k2GAriRFt0BS9gjihbl9Rt38VMNbBi3Vt3Cy6TOwANLLJ/DfnYjRqwCG81fkyKlDqdsamdfCiTysCa0gQKBgQDYQ45LSRxAOTyM5NliBmtev0lbpDa7FqXL0UFgBel5VgA1Ysp0+6ex2n73NBHbaVPEXgNMnTdzU3WF9uHF4Gj0mfUzbVMbj/YkkHDOZHBggAjEHCB87IKowq/uAH/++Qes2GipHHCTJlG6yejdxhOsMZXdCRnidNx5yv9+2JI37QKBgQCw0xn7ZeRBIOXxW7xFJw1WecUV7yaL9OWqKRHat3lFtf1Qo/87cLl+KeObvQjjXuUe07UkrS05h6ijWyCFlBo2V7Cdb3qjq4atUwScKfTJONnrF+fwTX0L5QgyQeDX5a4yYp4pLmt6HKh34sI5S/RSWxDm7kpj+/MjCZgp6Xc51g==";
+
+    // 支付宝公钥,查看地址：https://openhome.alipay.com/platform/keyManage.htm 对应APPID下的支付宝公钥。
+    private String alipay_public_key = "MIIBIjA74UKxt2F8VMIRKrRAAAuIMuawIsl4Ye+G12LK8P1ZLYy7ZJpgZ+Wv5nOs3DdoEazgCERj/ON8lM1KBHZOAV+TkrIcyi7cD1gfv4a1usikrUqm8/qhFvoiUfyHJFv1ymT7C4BI6aHzQ2zcUlSQPGoPl4C11tgnSkm3DlH2JZKgaIMcCOnNH+qctjNh9yIV9zat2qUiXbxmrCTtxAmiI3I+eVsUNwvwIDAQAB";
+
+    // 服务器[异步通知]页面路径  需http://格式的完整路径，不能加?id=123这类自定义参数，必须外网可以正常访问
+    // 支付宝会悄悄的给我们发送一个请求，告诉我们支付成功的信息
+    private  String notify_url="http://**.natappfree.cc/payed/notify";
+
+    // 页面跳转同步通知页面路径 需http://格式的完整路径，不能加?id=123这类自定义参数，必须外网可以正常访问
+    //同步通知，支付成功，一般跳转到成功页
+    private  String return_url="http://order.gulimall.com/memberOrder.html";
+
+    // 签名方式
+    private  String sign_type = "RSA2";
+
+    // 字符编码格式
+    private  String charset = "utf-8";
+
+    // 支付宝网关； https://openapi.alipaydev.com/gateway.do
+    private  String gatewayUrl = "https://openapi.alipaydev.com/gateway.do";
+
+    public  String pay(PayVo vo) throws AlipayApiException {
+
+        //AlipayClient alipayClient = new DefaultAlipayClient(AlipayTemplate.gatewayUrl, AlipayTemplate.app_id, AlipayTemplate.merchant_private_key, "json", AlipayTemplate.charset, AlipayTemplate.alipay_public_key, AlipayTemplate.sign_type);
+        //1、根据支付宝的配置生成一个支付客户端
+        AlipayClient alipayClient = new DefaultAlipayClient(gatewayUrl,
+                app_id, merchant_private_key, "json",
+                charset, alipay_public_key, sign_type);
+
+        //2、创建一个支付请求 //设置请求参数
+        AlipayTradePagePayRequest alipayRequest = new AlipayTradePagePayRequest();
+        alipayRequest.setReturnUrl(return_url);
+        alipayRequest.setNotifyUrl(notify_url);
+
+        //商户订单号，商户网站订单系统中唯一订单号，必填
+        String out_trade_no = vo.getOut_trade_no();
+        //付款金额，必填
+        String total_amount = vo.getTotal_amount();
+        //订单名称，必填
+        String subject = vo.getSubject();
+        //商品描述，可空
+        String body = vo.getBody();
+
+        alipayRequest.setBizContent("{\"out_trade_no\":\""+ out_trade_no +"\","
+                + "\"total_amount\":\""+ total_amount +"\","
+                + "\"subject\":\""+ subject +"\","
+                + "\"body\":\""+ body +"\","
+                + "\"product_code\":\"FAST_INSTANT_TRADE_PAY\"}");
+
+        String result = alipayClient.pageExecute(alipayRequest).getBody();
+
+        //会收到支付宝的响应，响应的是一个页面，只要浏览器显示这个页面，就会自动来到支付宝的收银台页面
+        System.out.println("支付宝的响应："+result);
+
+        return result;
+
+    }
+```
+
+#### (4) 订单支付与同步通知
+
+点击支付跳转到支付接口
+
+```
+@ResponseBody
+@GetMapping(value = "/aliPayOrder",produces = "text/html")
+public String aliPayOrder(@RequestParam("orderSn") String orderSn) throws AlipayApiException {
+    System.out.println("接收到订单信息orderSn："+orderSn);
+    //获取当前订单并设置支付订单相关信息
+    PayVo payVo = orderService.getOrderPay(orderSn);
+    String pay = alipayTemplate.pay(payVo);
+    return pay;
+}
+
+@Override
+public PayVo getOrderPay(String orderSn) {
+    OrderEntity orderEntity = this.getOne(new QueryWrapper<OrderEntity>().eq("order_sn", orderSn));
+    PayVo payVo = new PayVo();
+    //交易号
+    payVo.setOut_trade_no(orderSn);
+    //支付金额设置为两位小数，否则会报错
+    BigDecimal payAmount = orderEntity.getPayAmount().setScale(2, BigDecimal.ROUND_UP);
+    payVo.setTotal_amount(payAmount.toString());
+
+    List<OrderItemEntity> orderItemEntities = orderItemService.list(new QueryWrapper<OrderItemEntity>().eq("order_sn", orderSn));
+    OrderItemEntity orderItemEntity = orderItemEntities.get(0);
+    //订单名称
+    payVo.setSubject(orderItemEntity.getSkuName());
+    //商品描述
+    payVo.setBody(orderItemEntity.getSkuAttrsVals());
+    return payVo;
+}
+```
+
+设置成功回调地址为订单详情页
+
+```
+  	// 页面跳转同步通知页面路径 需http://格式的完整路径，不能加?id=123这类自定义参数，必须外网可以正常访问
+    //同步通知，支付成功，一般跳转到成功页
+    private  String return_url="http://order.gulimall.com/memberOrder.html";
+
+	  /**
+     * 获取当前用户的所有订单
+     * @return
+     */
+    @RequestMapping("/memberOrder.html")
+    public String memberOrder(@RequestParam(value = "pageNum",required = false,defaultValue = "0") Integer pageNum,Model model){
+        Map<String, Object> params = new HashMap<>();
+        params.put("page", pageNum.toString());
+        //分页查询当前用户的所有订单及对应订单项
+        PageUtils page = orderService.getMemberOrderPage(params);
+        model.addAttribute("pageUtil", page);
+        //返回至订单详情页
+        return "list";
+    }
+```
+
+#### (5) 异步通知
+
+- 订单支付成功后支付宝会回调商户接口，这个时候需要修改订单状态
+- 由于同步跳转可能由于网络问题失败，所以使用异步通知
+- 支付宝使用的是最大努力通知方案，保障数据一致性，隔一段时间会通知商户支付成功，直到返回`success`
+
+##### 1）内网穿透设置异步通知地址
+
+- 将外网映射到本地的`order.gulimall.com:80`
+
+- 由于回调的请求头不是`order.gulimall.com`，因此nginx转发到网关后找不到对应的服务，所以需要对nginx进行设置
+
+  ![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-10-18_12-18-28.png)
+
+  将`/payed/notify`异步通知转发至订单服务
+
+设置异步通知的地址
+
+```
+// 服务器[异步通知]页面路径  需http://格式的完整路径，不能加?id=123这类自定义参数，必须外网可以正常访问
+// 支付宝会悄悄的给我们发送一个请求，告诉我们支付成功的信息
+private  String notify_url="http://****.natappfree.cc/payed/notify";
+```
+
+##### 2）验证签名
+
+```
+@PostMapping("/payed/notify")
+public String handlerAlipay(HttpServletRequest request, PayAsyncVo payAsyncVo) throws AlipayApiException {
+    System.out.println("收到支付宝异步通知******************");
+    // 只要收到支付宝的异步通知，返回 success 支付宝便不再通知
+    // 获取支付宝POST过来反馈信息
+    //TODO 需要验签
+    Map<String, String> params = new HashMap<>();
+    Map<String, String[]> requestParams = request.getParameterMap();
+    for (String name : requestParams.keySet()) {
+        String[] values = requestParams.get(name);
+        String valueStr = "";
+        for (int i = 0; i < values.length; i++) {
+            valueStr = (i == values.length - 1) ? valueStr + values[i]
+                    : valueStr + values[i] + ",";
+        }
+        //乱码解决，这段代码在出现乱码时使用
+        // valueStr = new String(valueStr.getBytes("ISO-8859-1"), "utf-8");
+        params.put(name, valueStr);
+    }
+
+    boolean signVerified = AlipaySignature.rsaCheckV1(params, alipayTemplate.getAlipay_public_key(),
+            alipayTemplate.getCharset(), alipayTemplate.getSign_type()); //调用SDK验证签名
+
+    if (signVerified){
+        System.out.println("支付宝异步通知验签成功");
+        //修改订单状态
+        orderService.handlerPayResult(payAsyncVo);
+        return "success";
+    }else {
+        System.out.println("支付宝异步通知验签失败");
+        return "error";
+    }
+}
+```
+
+##### 3）修改订单状态与保存交易流水
+
+```
+@Override
+public void handlerPayResult(PayAsyncVo payAsyncVo) {
+    //保存交易流水
+    PaymentInfoEntity infoEntity = new PaymentInfoEntity();
+    String orderSn = payAsyncVo.getOut_trade_no();
+    infoEntity.setOrderSn(orderSn);
+    infoEntity.setAlipayTradeNo(payAsyncVo.getTrade_no());
+    infoEntity.setSubject(payAsyncVo.getSubject());
+    String trade_status = payAsyncVo.getTrade_status();
+    infoEntity.setPaymentStatus(trade_status);
+    infoEntity.setCreateTime(new Date());
+    infoEntity.setCallbackTime(payAsyncVo.getNotify_time());
+    paymentInfoService.save(infoEntity);
+
+    //判断交易状态是否成功
+    if (trade_status.equals("TRADE_SUCCESS") || trade_status.equals("TRADE_FINISHED")) {
+        baseMapper.updateOrderStatus(orderSn, OrderStatusEnum.PAYED.getCode(), PayConstant.ALIPAY);
+    }
+```
+
+##### 4) 异步通知的参数
+
+```
+@PostMapping("/payed/notify")
+public String handlerAlipay(HttpServletRequest request) {
+    System.out.println("收到支付宝异步通知******************");
+    Map<String, String[]> parameterMap = request.getParameterMap();
+    for (String key : parameterMap.keySet()) {
+        String value = request.getParameter(key);
+        System.out.println("key:"+key+"===========>value:"+value);
+    }
+    return "success";
+}
+收到支付宝异步通知******************
+key:gmt_create===========>value:2020-10-18 09:13:26
+key:charset===========>value:utf-8
+key:gmt_payment===========>value:2020-10-18 09:13:34
+key:notify_time===========>value:2020-10-18 09:13:35
+key:subject===========>value:华为
+key:sign===========>value:aqhKWzgzTLE84Scy5d8i3f+t9f7t7IE5tK/s5iHf3SdFQXPnTt6MEVtbr15ZXmITEo015nCbSXaUFJvLiAhWpvkNEd6ysraa+2dMgotuHPIHnIUFwvdk+U4Ez+2A4DBTJgmwtc5Ay8mYLpHLNR9ASuEmkxxK2F3Ov6MO0d+1DOjw9c/CCRRBWR8NHSJePAy/UxMzULLtpMELQ1KUVHLgZC5yym5TYSuRmltYpLHOuoJhJw8vGkh2+4FngvjtS7SBhEhR1GvJCYm1iXRFTNgP9Fmflw+EjxrDafCIA+r69ZqoJJ2Sk1hb4cBsXgNrFXR2Uj4+rQ1Ec74bIjT98f1KpA==
+key:buyer_id===========>value:2088622954825223
+key:body===========>value:上市年份：2020；内存：64G
+key:invoice_amount===========>value:6300.00
+key:version===========>value:1.0
+key:notify_id===========>value:2020101800222091334025220507700182
+key:fund_bill_list===========>value:[{"amount":"6300.00","fundChannel":"ALIPAYACCOUNT"}]
+key:notify_type===========>value:trade_status_sync
+key:out_trade_no===========>value:12345523123
+key:total_amount===========>value:6300.00
+key:trade_status===========>value:TRADE_SUCCESS
+key:trade_no===========>value:2020101822001425220501264292
+key:auth_app_id===========>value:2016102600763190
+key:receipt_amount===========>value:6300.00
+key:point_amount===========>value:0.00
+key:app_id===========>value:2016102600763190
+key:buyer_pay_amount===========>value:6300.00
+key:sign_type===========>value:RSA2
+key:seller_id===========>value:2088102181115314
+```
+
+各参数详细意义见[支付宝开放平台异步通知](https://opendocs.alipay.com/open/194/103296)
+
+#### (6) 收单
+
+由于可能出现订单已经过期后，库存已经解锁，但支付成功后再修改订单状态的情况，需要设置支付有效时间，只有在有效期内才能进行支付
+
+```
+alipayRequest.setBizContent("{\"out_trade_no\":\""+ out_trade_no +"\","
+        + "\"total_amount\":\""+ total_amount +"\","
+        + "\"subject\":\""+ subject +"\","
+        + "\"body\":\""+ body +"\","
+        //设置过期时间为1m
+        +"\"timeout_express\":\"1m\","
+        + "\"product_code\":\"FAST_INSTANT_TRADE_PAY\"}");
+```
+
+超时后订单显示
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-10-18_13-11-00.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-10-18_13-11-00.png)
+
+## 
 
 
 

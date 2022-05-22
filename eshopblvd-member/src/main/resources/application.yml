@@ -10,6 +10,10 @@ spring:
         server-addr: 47.103.8.41:8848
   application:
     name: eshopblvd-member
+  session:
+    store-type: redis
+  redis:
+    host: xxx
 
 mybatis:
   mapper-locations: classpath*:com/hatsukoi/eshopblvd/member/mapper/*.xml

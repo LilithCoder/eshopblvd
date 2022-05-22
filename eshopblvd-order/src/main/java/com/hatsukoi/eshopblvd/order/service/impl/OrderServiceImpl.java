@@ -12,11 +12,13 @@ import com.hatsukoi.eshopblvd.order.dao.OrderItemMapper;
 import com.hatsukoi.eshopblvd.order.dao.OrderMapper;
 import com.hatsukoi.eshopblvd.order.entity.Order;
 import com.hatsukoi.eshopblvd.exception.order.OrderTokenException;
+import com.hatsukoi.eshopblvd.order.entity.OrderExample;
 import com.hatsukoi.eshopblvd.order.entity.OrderItem;
 import com.hatsukoi.eshopblvd.order.interceptor.LoginUserInterceptor;
 import com.hatsukoi.eshopblvd.order.service.OrderService;
 import com.hatsukoi.eshopblvd.order.vo.OrderConfirmVO;
 import com.hatsukoi.eshopblvd.order.vo.OrderSubmitVO;
+import com.hatsukoi.eshopblvd.order.vo.PayVo;
 import com.hatsukoi.eshopblvd.to.*;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import com.hatsukoi.eshopblvd.vo.MemberAddressVO;
@@ -196,6 +198,21 @@ public class OrderServiceImpl implements OrderService {
                 //TODO 将没法送成功的消息进行重试发送。
             }
         }
+    }
+
+    @Override
+    public PayVo buildPayData(String orderSn) {
+        PayVo payVo = new PayVo();
+        // 先根据订单号来获取订单
+        OrderExample orderExample = new OrderExample();
+        orderExample.createCriteria().andOrderSnEqualTo(orderSn);
+        List<Order> orders = orderMapper.selectByExample(orderExample);
+        Order order = orders.get(0);
+        // 应付价格小数位进到2位
+        BigDecimal price = order.getPayAmount().setScale(2, BigDecimal.ROUND_UP);
+        payVo.setTotal_amount(price.toString());
+        payVo.setOut_trade_no(order.getOrderSn());
+        return payVo;
     }
 
     /**
