@@ -93,4 +93,6 @@ public interface OrderMapper {
      * @mbg.generated
      */
     int updateByPrimaryKey(Order record);
+
+    void updateOrderStatus(@Param("out_trade_no") String out_trade_no, @Param("code") Byte code);
 }

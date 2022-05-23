@@ -1,23 +1,27 @@
 package com.hatsukoi.eshopblvd.order.service.impl;
 
 import com.alibaba.fastjson.TypeReference;
+import com.alipay.api.AlipayApiException;
+import com.alipay.api.internal.util.AlipaySignature;
+import com.github.pagehelper.PageHelper;
 import com.hatsukoi.eshopblvd.api.cart.CartService;
 import com.hatsukoi.eshopblvd.api.member.MemberService;
 import com.hatsukoi.eshopblvd.api.product.ProductRpcService;
 import com.hatsukoi.eshopblvd.exception.order.InvalidPriceException;
 import com.hatsukoi.eshopblvd.exception.ware.NoStockException;
+import com.hatsukoi.eshopblvd.order.config.AlipayTemplate;
 import com.hatsukoi.eshopblvd.order.constant.OrderConstant;
 import com.hatsukoi.eshopblvd.order.constant.OrderStatus;
 import com.hatsukoi.eshopblvd.order.dao.OrderItemMapper;
 import com.hatsukoi.eshopblvd.order.dao.OrderMapper;
-import com.hatsukoi.eshopblvd.order.entity.Order;
+import com.hatsukoi.eshopblvd.order.dao.PaymentInfoMapper;
+import com.hatsukoi.eshopblvd.order.entity.*;
 import com.hatsukoi.eshopblvd.exception.order.OrderTokenException;
-import com.hatsukoi.eshopblvd.order.entity.OrderItem;
 import com.hatsukoi.eshopblvd.order.interceptor.LoginUserInterceptor;
 import com.hatsukoi.eshopblvd.order.service.OrderService;
-import com.hatsukoi.eshopblvd.order.vo.OrderConfirmVO;
-import com.hatsukoi.eshopblvd.order.vo.OrderSubmitVO;
+import com.hatsukoi.eshopblvd.order.vo.*;
 import com.hatsukoi.eshopblvd.to.*;
+import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import com.hatsukoi.eshopblvd.vo.MemberAddressVO;
 import com.hatsukoi.eshopblvd.vo.OrderItemVO;
@@ -34,11 +38,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import javax.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -80,6 +82,12 @@ public class OrderServiceImpl implements OrderService {
 
     @Autowired
     private RabbitTemplate rabbitTemplate;
+
+    @Autowired
+    private AlipayTemplate alipayTemplate;
+
+    @Autowired
+    private PaymentInfoMapper paymentInfoMapper;
 
     @Override
     public OrderConfirmVO getOrderConfirmData(Long addrId) throws ExecutionException, InterruptedException {
@@ -196,6 +204,113 @@ public class OrderServiceImpl implements OrderService {
                 //TODO 将没法送成功的消息进行重试发送。
             }
         }
+    }
+
+    @Override
+    public PayVo buildPayData(String orderSn) {
+        PayVo payVo = new PayVo();
+        // 先根据订单号来获取订单
+        OrderExample orderExample = new OrderExample();
+        orderExample.createCriteria().andOrderSnEqualTo(orderSn);
+        List<Order> orders = orderMapper.selectByExample(orderExample);
+        Order order = orders.get(0);
+        // 应付价格小数位进到2位
+        BigDecimal price = order.getPayAmount().setScale(2, BigDecimal.ROUND_UP);
+        payVo.setTotal_amount(price.toString());
+        payVo.setOut_trade_no(order.getOrderSn());
+        return payVo;
+    }
+
+    /**
+     * 分页查询用户订单
+     * @param params
+     * @return
+     */
+    @Override
+    public CommonPageInfo<OrderVo> getOrderList(Map<String, Object> params) {
+        // 分页参数
+        int pageNum = 1;
+        int pageSize = 10;
+        if (params.get("page") != null) {
+            pageNum = Integer.parseInt(params.get("page").toString());
+        }
+        if (params.get("limit") != null) {
+            pageSize = Integer.parseInt(params.get("limit").toString());
+        }
+
+        // 开启分页插件
+        PageHelper.startPage(pageNum, pageSize);
+
+        MemberTO memberTO = LoginUserInterceptor.loginUser.get();
+
+        // 查询登陆用户的所有订单
+        OrderExample orderExample = new OrderExample();
+        orderExample.createCriteria().andMemberIdEqualTo(memberTO.getId());
+        List<Order> orders = orderMapper.selectByExample(orderExample);
+
+        List<OrderVo> collect = orders.stream().map(order -> {
+            OrderVo orderVo = new OrderVo();
+            OrderItemExample orderItemExample = new OrderItemExample();
+            orderItemExample.createCriteria().andOrderSnEqualTo(order.getOrderSn());
+            List<OrderItem> orderItems = orderItemMapper.selectByExample(orderItemExample);
+            orderVo.setItems(orderItems);
+            return orderVo;
+        }).collect(Collectors.toList());
+
+        return CommonPageInfo.convertToCommonPage(collect);
+    }
+
+    /**
+     * 处理支付宝异步通知交易结果
+     * @param pay
+     */
+    @Override
+    public void handleAlipay(PayAsyncVo pay, HttpServletRequest request) throws AlipayApiException {
+        boolean signVerified = signVerify(request);
+        if (signVerified) {
+            log.info("验证签名成功");
+            savePaymentInfo(pay);
+            // 如果通知支付成功的话，把订单的状态更新为已付款
+            if (pay.getTrade_status().equals("TRADE_SUCCESS") || pay.getTrade_status().equals("TRADE_FINISHED")) {
+                // UPDATE `oms_order` SET `status`=#{code} WHERE order_sn=#{out_trade_no}
+                orderMapper.updateOrderStatus(pay.getOut_trade_no(), OrderStatus.PAYED.getCode());
+            }
+        } else {
+            log.info("验证签名失败");
+            throw new RuntimeException("验证签名失败");
+        }
+    }
+
+    /**
+     * 保存交易流水
+     * @param pay
+     */
+    private void savePaymentInfo(PayAsyncVo pay) {
+        // 保存交易流水「oms_payment_info」
+        PaymentInfo paymentInfo = new PaymentInfo();
+        paymentInfo.setAlipayTradeNo(pay.getTrade_no());
+        paymentInfo.setOrderSn(pay.getOut_trade_no());
+        paymentInfo.setPaymentStatus(pay.getTrade_status());
+        paymentInfo.setCallbackTime(pay.getNotify_time());
+        paymentInfoMapper.insertSelective(paymentInfo);
+    }
+
+    private boolean signVerify(HttpServletRequest request) throws AlipayApiException {
+        // 验签
+        Map<String, String> params = new HashMap<>();
+        Map<String, String[]> requestParam = request.getParameterMap();
+        for (Iterator<String> iter = requestParam.keySet().iterator(); iter.hasNext();) {
+            String name = (String) iter.next();
+            String[] values = (String[]) requestParam.get(name);
+            String valueStr = "";
+            for (int i = 0; i < values.length; i++) {
+                valueStr = (i == values.length - 1) ? valueStr + values[i]
+                        : valueStr + values[i] + ",";
+            }
+            params.put(name, valueStr);
+        }
+        // 调用SDK验证签名
+        return AlipaySignature.rsaCheckV1(params, alipayTemplate.getAlipay_public_key(), alipayTemplate.getCharset(), alipayTemplate.getSign_type());
     }
 
     /**
