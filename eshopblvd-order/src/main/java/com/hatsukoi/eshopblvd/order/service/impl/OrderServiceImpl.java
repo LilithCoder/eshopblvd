@@ -1,6 +1,7 @@
 package com.hatsukoi.eshopblvd.order.service.impl;
 
 import com.alibaba.fastjson.TypeReference;
+import com.github.pagehelper.PageHelper;
 import com.hatsukoi.eshopblvd.api.cart.CartService;
 import com.hatsukoi.eshopblvd.api.member.MemberService;
 import com.hatsukoi.eshopblvd.api.product.ProductRpcService;
@@ -14,12 +15,15 @@ import com.hatsukoi.eshopblvd.order.entity.Order;
 import com.hatsukoi.eshopblvd.exception.order.OrderTokenException;
 import com.hatsukoi.eshopblvd.order.entity.OrderExample;
 import com.hatsukoi.eshopblvd.order.entity.OrderItem;
+import com.hatsukoi.eshopblvd.order.entity.OrderItemExample;
 import com.hatsukoi.eshopblvd.order.interceptor.LoginUserInterceptor;
 import com.hatsukoi.eshopblvd.order.service.OrderService;
 import com.hatsukoi.eshopblvd.order.vo.OrderConfirmVO;
 import com.hatsukoi.eshopblvd.order.vo.OrderSubmitVO;
+import com.hatsukoi.eshopblvd.order.vo.OrderVo;
 import com.hatsukoi.eshopblvd.order.vo.PayVo;
 import com.hatsukoi.eshopblvd.to.*;
+import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import com.hatsukoi.eshopblvd.vo.MemberAddressVO;
 import com.hatsukoi.eshopblvd.vo.OrderItemVO;
@@ -37,10 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -213,6 +214,45 @@ public class OrderServiceImpl implements OrderService {
         payVo.setTotal_amount(price.toString());
         payVo.setOut_trade_no(order.getOrderSn());
         return payVo;
+    }
+
+    /**
+     * 分页查询用户订单
+     * @param params
+     * @return
+     */
+    @Override
+    public CommonPageInfo<OrderVo> getOrderList(Map<String, Object> params) {
+        // 分页参数
+        int pageNum = 1;
+        int pageSize = 10;
+        if (params.get("page") != null) {
+            pageNum = Integer.parseInt(params.get("page").toString());
+        }
+        if (params.get("limit") != null) {
+            pageSize = Integer.parseInt(params.get("limit").toString());
+        }
+
+        // 开启分页插件
+        PageHelper.startPage(pageNum, pageSize);
+
+        MemberTO memberTO = LoginUserInterceptor.loginUser.get();
+
+        // 查询登陆用户的所有订单
+        OrderExample orderExample = new OrderExample();
+        orderExample.createCriteria().andMemberIdEqualTo(memberTO.getId());
+        List<Order> orders = orderMapper.selectByExample(orderExample);
+
+        List<OrderVo> collect = orders.stream().map(order -> {
+            OrderVo orderVo = new OrderVo();
+            OrderItemExample orderItemExample = new OrderItemExample();
+            orderItemExample.createCriteria().andOrderSnEqualTo(order.getOrderSn());
+            List<OrderItem> orderItems = orderItemMapper.selectByExample(orderItemExample);
+            orderVo.setItems(orderItems);
+            return orderVo;
+        }).collect(Collectors.toList());
+
+        return CommonPageInfo.convertToCommonPage(collect);
     }
 
     /**

@@ -10,12 +10,15 @@ import com.hatsukoi.eshopblvd.order.entity.Order;
 import com.hatsukoi.eshopblvd.order.service.OrderService;
 import com.hatsukoi.eshopblvd.order.vo.OrderConfirmVO;
 import com.hatsukoi.eshopblvd.order.vo.OrderSubmitVO;
+import com.hatsukoi.eshopblvd.order.vo.OrderVo;
 import com.hatsukoi.eshopblvd.order.vo.PayVo;
+import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -82,5 +85,11 @@ public class OrderController {
         PayVo payVo = orderService.buildPayData(orderSn);
         String pay = alipayTemplate.pay(payVo);
         return pay;
+    }
+
+    @GetMapping("/orderList")
+    public CommonResponse orderList(@RequestParam Map<String, Object> params) {
+        CommonPageInfo<OrderVo> query = orderService.getOrderList(params);
+        return CommonResponse.success().setData(query);
     }
 }
