@@ -8,16 +8,14 @@ import com.hatsukoi.eshopblvd.exception.ware.NoStockException;
 import com.hatsukoi.eshopblvd.order.config.AlipayTemplate;
 import com.hatsukoi.eshopblvd.order.entity.Order;
 import com.hatsukoi.eshopblvd.order.service.OrderService;
-import com.hatsukoi.eshopblvd.order.vo.OrderConfirmVO;
-import com.hatsukoi.eshopblvd.order.vo.OrderSubmitVO;
-import com.hatsukoi.eshopblvd.order.vo.OrderVo;
-import com.hatsukoi.eshopblvd.order.vo.PayVo;
+import com.hatsukoi.eshopblvd.order.vo.*;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
@@ -87,9 +85,30 @@ public class OrderController {
         return pay;
     }
 
+    /**
+     * 订单列表页数据
+     * @param params
+     * @return
+     */
     @GetMapping("/orderList")
     public CommonResponse orderList(@RequestParam Map<String, Object> params) {
         CommonPageInfo<OrderVo> query = orderService.getOrderList(params);
         return CommonResponse.success().setData(query);
+    }
+
+    /**
+     * 处理支付宝异步通知交易结果
+     * @param pay
+     * @param request
+     * @return
+     */
+    @PostMapping("/pay/notify")
+    public String handleAlipay(PayAsyncVo pay, HttpServletRequest request) {
+        try {
+            orderService.handleAlipay(pay, request);
+            return "success";
+        } catch (Exception e) {
+            return "fail";
+        }
     }
 }

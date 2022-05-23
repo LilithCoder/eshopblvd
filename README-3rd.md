@@ -3786,8 +3786,14 @@ public PayVo getOrderPay(String orderSn) {
 #### (5) 异步通知
 
 - 订单支付成功后支付宝会回调商户接口，这个时候需要修改订单状态
+
 - 由于同步跳转可能由于网络问题失败，所以使用异步通知
+
 - 支付宝使用的是最大努力通知方案，保障数据一致性，隔一段时间会通知商户支付成功，直到返回`success`
+
+- https://opendocs.alipay.com/open/270/105902
+
+  ![](./docs/assets/274.png)
 
 ##### 1）内网穿透设置异步通知地址
 
@@ -3798,6 +3804,10 @@ public PayVo getOrderPay(String orderSn) {
   ![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-10-18_12-18-28.png)
 
   将`/payed/notify`异步通知转发至订单服务
+
+  ![](./docs/assets/276.png)
+
+  ![](./docs/assets/277.png)
 
 设置异步通知的地址
 
@@ -3924,17 +3934,29 @@ alipayRequest.setBizContent("{\"out_trade_no\":\""+ out_trade_no +"\","
         + "\"product_code\":\"FAST_INSTANT_TRADE_PAY\"}");
 ```
 
-超时后订单显示
+#### 超时后订单显示
 
-[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-10-18_13-11-00.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-10-18_13-11-00.png)
+![](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-10-18_13-11-00.png?raw=true)
 
-## 
+#### 支付流程
 
+![](./docs/assets/275.png)
 
+![](./docs/assets/278.png)
 
+#### 收单
 
+- 1、订单在支付页，不支付，一直刷新，订单过期了才支付，订单状态改为已支付了，但是库 存解锁了。
+  - 使用支付宝自动收单功能解决。只要一段时间不支付，就不能支付了。 
 
+- 2、由于时延等问题。订单解锁完成，正在解锁库存的时候，异步通知才到，付成功了，通知到的时候已经解锁订单
+  - 订单解锁，手动调用收单
 
+- 3、网络阻塞问题，订单支付成功的异步通知一直不到达
+  - 查询订单列表时，ajax获取当前未支付的订单状态，查询订单状态时，再获取一下支付宝 此订单的状态
+
+- 4、其他各种问题
+  - 每天晚上闲时下载支付宝对账单，一一进行对账
 
 
 

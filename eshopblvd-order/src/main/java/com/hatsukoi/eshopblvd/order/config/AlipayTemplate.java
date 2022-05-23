@@ -23,11 +23,11 @@ public class AlipayTemplate {
     private  String alipay_public_key = "xxx ";
     // 服务器[异步通知]页面路径  需http://格式的完整路径，不能加?id=123这类自定义参数，必须外网可以正常访问
     // 支付宝会悄悄的给我们发送一个请求，告诉我们支付成功的信息
-    private  String notify_url = "http://497n86m7k7.52http.net/payed/notify";
+    private  String notify_url = "http://eshopblvd.com/order/pay/notify";
 
     // 页面跳转同步通知页面路径 需http://格式的完整路径，不能加?id=123这类自定义参数，必须外网可以正常访问
     //同步通知，支付成功，一般跳转到成功页
-    private  String return_url = "http://member.eshopblvd.com/memberOrder";
+    private  String return_url = "http://order.eshopblvd.com/orderList";
 
     // 签名方式
     private  String sign_type = "RSA2";
