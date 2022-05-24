@@ -1166,7 +1166,7 @@ public void receive4(Book book, Message message,Channel channel) throws IOExcept
 ```yaml
 spring:
   redis:
-    host: 47.103.8.41
+    host: xxx
     port: 6379
   session:
     store-type: redis
@@ -3958,11 +3958,27 @@ alipayRequest.setBizContent("{\"out_trade_no\":\""+ out_trade_no +"\","
 - 4、其他各种问题
   - 每天晚上闲时下载支付宝对账单，一一进行对账
 
+# 下订单+支付总逻辑
 
+![](./docs/assets/238.svg)
 
+# 秒杀服务
 
+sms_seckill_session：秒杀场次（开始、结束时间）
 
+sms_seckill_sku_relation：秒杀场次的商品关联（场次id、关联的skuid、秒杀价格、秒杀商品的库存、每人的秒杀限制）
 
+秒杀具有瞬间高并发的特点，针对这一特点，必须要做限流 + 异步 + 缓存(页面静态化)
+
+\+ 独立部署。
+
+限流方式:
+
+- 前端限流，一些高并发的网站直接在前端页面开始限流，例如:小米的验证码设计
+- nginx 限流，直接负载部分请求到错误的静态页面:令牌算法 漏斗算法
+- 网关限流，限流的过滤器
+- 代码中使用分布式信号量
+- rabbitmq 限流(能者多劳:chanel.basicQos(1))，保证发挥所有服务器的性能。
 
 
 

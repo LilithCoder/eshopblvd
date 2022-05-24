@@ -7,7 +7,7 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: 47.103.8.41:8848
+        server-addr: xxx:8848
     gateway:
       routes:
         - id: product-route
@@ -70,6 +70,13 @@ spring:
           uri: lb://eshopblvd-member
           predicates:
             - Path=/api/member/**
+          filters:
+            - RewritePath=/api/(?<segment>.*),/$\{segment}
+
+        - id: coupon_route
+          uri: lb://eshopblvd-coupon
+          predicates:
+            - Path=/api/coupon/**
           filters:
             - RewritePath=/api/(?<segment>.*),/$\{segment}
 
