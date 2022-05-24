@@ -312,7 +312,7 @@ spring:
   datasource:
     username: root
     password: root
-    url: jdbc:mysql://47.103.8.41:3306/eshopblvd_pms
+    url: jdbc:mysql://xxx:3306/eshopblvd_pms
     driver-class-name: com.mysql.cj.jdbc.Driver
 ```
 
@@ -1681,7 +1681,7 @@ spring:
      cloud:
        nacos:
          discovery:
-           server-addr: 47.103.8.41:8848
+           server-addr: xxx:8848
    server:
      port: 30000
    ```

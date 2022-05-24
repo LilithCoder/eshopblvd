@@ -2,11 +2,11 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: 47.103.8.41:8848
+        server-addr: xxx:8848
   application:
     name: eshopblvd-sso-auth
   redis:
-    host: 47.103.8.41
+    host: xxx
     port: 6379
   session:
     store-type: redis
@@ -23,7 +23,7 @@ dubbo:
   application:
     name: eshopblvd-sso-auth-dubbo
   registry:
-    address: nacos://47.103.8.41:8848
+    address: nacos://xxx:8848
   monitor:
     protocol: registry
   protocol:

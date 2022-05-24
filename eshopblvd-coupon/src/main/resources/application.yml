@@ -7,7 +7,7 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: 47.103.8.41:8848
+        server-addr: xxx:8848
   application:
     name: eshopblvd-coupon
 
@@ -21,7 +21,7 @@ dubbo:
   application:
     name: eshopblvd-coupon-dubbo
   registry:
-    address: nacos://47.103.8.41:8848
+    address: nacos://xxx:8848
   monitor:
     protocol: registry
   protocol:
