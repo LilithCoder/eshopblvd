@@ -4599,3 +4599,13 @@ public R getSeckillSkuInfo(@PathVariable("skuId") Long skuId) {
 第二种，如果订单服务炸了，你返回用户下单成功， 订单没有详情信息，用户就没办法支付
 
 mq作用：流量晓峰、数据一致性
+
+# 秒杀业务整体逻辑
+
+![](./docs/assets/279.svg)
+
+# 最后的总结
+
+![](./docs/assets/overview.png)
+
+iu#
