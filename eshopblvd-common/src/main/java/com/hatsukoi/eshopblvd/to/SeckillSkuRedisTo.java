@@ -1,4 +1,4 @@
-package com.hatsukoi.eshopblvd.seckill.to;
+package com.hatsukoi.eshopblvd.to;
 
 import com.hatsukoi.eshopblvd.to.SkuInfoTO;
 import lombok.Data;

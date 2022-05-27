@@ -1,14 +1,20 @@
 package com.hatsukoi.eshopblvd.product.service.impl;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.TypeReference;
 import com.github.pagehelper.PageHelper;
+import com.hatsukoi.eshopblvd.api.seckill.SeckillRpcService;
 import com.hatsukoi.eshopblvd.product.dao.SkuInfoMapper;
 import com.hatsukoi.eshopblvd.product.entity.*;
 import com.hatsukoi.eshopblvd.product.service.*;
 import com.hatsukoi.eshopblvd.product.vo.SkuItemVO;
+import com.hatsukoi.eshopblvd.to.SeckillSkuRedisTo;
 import com.hatsukoi.eshopblvd.utils.CommonPageInfo;
+import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
+import org.apache.dubbo.config.annotation.Reference;
+import org.apache.http.HttpStatus;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -45,6 +51,9 @@ public class SkuInfoServiceImpl implements SkuInfoService {
 
     @Autowired
     private AttrGroupService attrGroupService;
+
+    @Reference(interfaceName = "com.hatsukoi.eshopblvd.api.seckill.SeckillRpcService", check = false)
+    private SeckillRpcService seckillRpcService;
 
     @Override
     public void insertSkuInfo(SkuInfo skuInfo) {
@@ -192,13 +201,24 @@ public class SkuInfoServiceImpl implements SkuInfoService {
             skuItemVO.setGroupAttrs(spuItemAttrGroupVOs);
         }, threadPoolExecutor);
 
+        // 6. 查询当前sku是否参与秒杀优惠
+        CompletableFuture<Void> secKillFuture = CompletableFuture.runAsync(() -> {
+            CommonResponse resp = CommonResponse.convertToResp(seckillRpcService.getSkuSeckillInfo(skuId));
+            if (resp.getCode() == HttpStatus.SC_OK) {
+                SeckillSkuRedisTo data = resp.getData(new TypeReference<SeckillSkuRedisTo>() {
+                });
+                skuItemVO.setSeckillInfo(data);
+            }
+        }, threadPoolExecutor);
+
         // 6. 等到所有异步任务都完成
         try {
             CompletableFuture.allOf(skuInfoCompletableFuture,
                     skuImagesCompletableFuture,
                     saleAttrsCompletableFuture,
                     spuDescCompletableFuture,
-                    baseAttrsCompletableFuture).get();
+                    baseAttrsCompletableFuture,
+                    secKillFuture).get();
         } catch (Exception e) {
             log.error("获取商品sku详情信息失败!");
             e.printStackTrace();

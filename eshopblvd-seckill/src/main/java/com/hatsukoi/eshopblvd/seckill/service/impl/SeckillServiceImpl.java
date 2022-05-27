@@ -6,7 +6,7 @@ import com.hatsukoi.eshopblvd.api.coupon.CouponRpcService;
 import com.hatsukoi.eshopblvd.api.product.ProductRpcService;
 import com.hatsukoi.eshopblvd.seckill.interceptor.LoginUserInterceptor;
 import com.hatsukoi.eshopblvd.seckill.service.SeckillService;
-import com.hatsukoi.eshopblvd.seckill.to.SeckillSkuRedisTo;
+import com.hatsukoi.eshopblvd.to.SeckillSkuRedisTo;
 import com.hatsukoi.eshopblvd.to.*;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import lombok.extern.slf4j.Slf4j;

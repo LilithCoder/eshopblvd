@@ -1,6 +1,6 @@
 package com.hatsukoi.eshopblvd.seckill.service;
 
-import com.hatsukoi.eshopblvd.seckill.to.SeckillSkuRedisTo;
+import com.hatsukoi.eshopblvd.to.SeckillSkuRedisTo;
 
 import java.util.List;
 

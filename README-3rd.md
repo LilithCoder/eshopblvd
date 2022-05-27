@@ -4444,7 +4444,7 @@ public R getSeckillSkuInfo(@PathVariable("skuId") Long skuId) {
       return "success";
   }
   
-   @Override
+   @Overridew
       public String kill(String killId, String key, Integer num) throws InterruptedException {
           BoundHashOperations<String, String, String> ops = redisTemplate.boundHashOps(SECKILL_CHARE_PREFIX);
           String json = ops.get(killId);

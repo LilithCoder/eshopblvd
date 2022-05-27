@@ -1,7 +1,7 @@
 package com.hatsukoi.eshopblvd.seckill.controller;
 
 import com.hatsukoi.eshopblvd.seckill.service.SeckillService;
-import com.hatsukoi.eshopblvd.seckill.to.SeckillSkuRedisTo;
+import com.hatsukoi.eshopblvd.to.SeckillSkuRedisTo;
 import com.hatsukoi.eshopblvd.utils.CommonResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
