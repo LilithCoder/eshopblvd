@@ -3,6 +3,7 @@ package com.hatsukoi.eshopblvd.product.vo;
 import com.hatsukoi.eshopblvd.product.entity.SkuImages;
 import com.hatsukoi.eshopblvd.product.entity.SkuInfo;
 import com.hatsukoi.eshopblvd.product.entity.SpuInfoDesc;
+import com.hatsukoi.eshopblvd.to.SeckillSkuRedisTo;
 import lombok.Data;
 
 import java.util.List;
@@ -34,6 +35,10 @@ public class SkuItemVO {
      * sku对应spu的规格参数信息
      */
     List<SpuItemAttrGroupVO> groupAttrs;
+    /**
+     * 当前商品的秒杀优惠信息
+     */
+    SeckillSkuRedisTo seckillInfo;
 
     @Data
     public static class SpuSaleAttrVO {

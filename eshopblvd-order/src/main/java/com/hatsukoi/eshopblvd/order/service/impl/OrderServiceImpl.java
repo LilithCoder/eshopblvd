@@ -281,6 +281,25 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
+    @Override
+    public void createSeckillOrder(SeckillOrderTo seckillOrder) {
+        // 保存订单数据
+        Order order = new Order();
+        order.setOrderSn(seckillOrder.getOrderSn());
+        order.setMemberId(seckillOrder.getMemberId());
+        order.setStatus(OrderStatus.CREATE_NEW.getCode());
+        BigDecimal multiply = seckillOrder.getSeckillPrice().multiply(new BigDecimal(seckillOrder.getNum().toString()));
+        order.setPayAmount(multiply);
+        orderMapper.insertSelective(order);
+
+        // 保存订单项数据。秒杀的订单只有一个订单项
+        OrderItem orderItem = new OrderItem();
+        orderItem.setOrderSn(seckillOrder.getOrderSn());
+        orderItem.setRealAmount(multiply);
+        orderItem.setSkuQuantity(seckillOrder.getNum());
+        orderItemMapper.insertSelective(orderItem);
+    }
+
     /**
      * 保存交易流水
      * @param pay
