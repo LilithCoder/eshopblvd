@@ -80,6 +80,13 @@ spring:
           filters:
             - RewritePath=/api/(?<segment>.*),/$\{segment}
 
+        - id: seckill_route
+          uri: lb://eshopblvd-seckill
+          predicates:
+            - Path=/api/seckill/**
+          filters:
+            - RewritePath=/api/(?<segment>.*),/$\{segment}
+
 #        - id: eshopblvd_host_route
 #          uri: lb://eshopblvd-product
 #          predicates:

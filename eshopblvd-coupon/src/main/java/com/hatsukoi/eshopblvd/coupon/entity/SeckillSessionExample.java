@@ -375,7 +375,7 @@ public class SeckillSessionExample {
             return (Criteria) this;
         }
 
-        public Criteria andStartTimeBetween(Date value1, Date value2) {
+        public Criteria andStartTimeBetween(String value1, String value2) {
             addCriterion("start_time between", value1, value2, "startTime");
             return (Criteria) this;
         }

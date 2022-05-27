@@ -2,4 +2,38 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr:
+        server-addr: xxx:8848
+  application:
+    name: eshopblvd-seckill
+  redis:
+    host: xxx
+    port: 6379
+  session:
+    store-type: redis
+  rabbitmq:
+    host: xxx
+    port: 5672
+    virtual-host: /
+    publisher-confirms: true
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+
+server:
+  port: 25000
+
+dubbo:
+  application:
+    name: eshopblvd-sso-auth-dubbo
+  registry:
+    address: nacos://xxx:8848
+  monitor:
+    protocol: registry
+  protocol:
+    port: 20991
+  consumer:
+    timeout: 60000
+    retries: 3

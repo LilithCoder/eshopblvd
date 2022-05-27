@@ -1,10 +1,10 @@
-package com.hatsukoi.eshopblvd.demo;
+package com.hatsukoi.eshopblvd.seckill;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class DemoApplicationTests {
+class EshopblvdSecKillApplicationTests {
 
     @Test
     void contextLoads() {

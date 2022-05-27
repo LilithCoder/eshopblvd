@@ -3980,5 +3980,622 @@ sms_seckill_sku_relation：秒杀场次的商品关联（场次id、关联的sku
 - 代码中使用分布式信号量
 - rabbitmq 限流(能者多劳:chanel.basicQos(1))，保证发挥所有服务器的性能。
 
+### 定时任务
 
+#### cron 表达式
 
+![](./docs/assets/280.png)
+
+#### cron 示例
+
+![](./docs/assets/281.png)
+
+### 异步+定时任务
+
+使用异步+定时任务来完成定时任务不阻塞的功能
+
+```java
+/**
+ * 定时任务
+ *      1、@EnableScheduling 开启定时任务
+ *      2、@Scheduled  开启一个定时任务
+ *      3、自动配置类 TaskSchedulingAutoConfiguration
+ *
+ * 异步任务
+ *      1、@EnableAsync 开启异步任务功能
+ *      2、@Async 给希望异步执行的方法上标注
+ *      3、自动配置类 TaskExecutionAutoConfiguration 属性绑定在TaskExecutionProperties
+ */
+@Slf4j
+@Component
+//@EnableAsync
+//@EnableScheduling
+public class HelloSchedule {
+    /**
+     * 1、Spring中6位组成，不允许第7位的年
+     * 2、在周几的位置，1-7代表周一到周日； MON-SUN
+     * 3、定时任务不应该阻塞。默认是阻塞的
+     *      1）、可以让业务运行以异步的方式，自己提交到线程池
+     *              CompletableFuture.runAsync(()->{
+     *                  xxxxService.hello();
+     *              },executor);
+     *      2）、支持定时任务线程池；设置 TaskSchedulingProperties；
+     *              spring.task.scheduling.pool.size=5
+     *
+     *      3）、让定时任务异步执行
+     *          异步任务
+     *     解决：使用异步+定时任务来完成定时任务不阻塞的功能；
+     */
+    @Async
+    @Scheduled(cron = "* * * ? * 5")
+    public void hello() throws InterruptedException {
+        log.info("hello...");
+        Thread.sleep(3000);
+    }
+}
+```
+
+### 1. 秒杀（高并发）系统关注的问题
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-10-27_12-24-58.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-10-27_12-24-58.png)
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-10-27_12-26-00.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-10-27_12-26-00.png)
+
+### 2. 秒杀架构设计
+
+#### (1) 秒杀架构图
+
+- 项目独立部署，独立秒杀模块`gulimall-seckill`
+- 使用定时任务每天三点上架最新秒杀商品，削减高峰期压力
+- 秒杀链接加密，为秒杀商品添加唯一商品随机码，在开始秒杀时才暴露接口
+- 库存预热，先从数据库中扣除一部分库存以`redisson 信号量`的形式存储在redis中
+- 队列削峰，秒杀成功后立即返回，然后以发送消息的形式创建订单
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-10-27_18-01-14.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-10-27_18-01-14.png)
+
+#### (2) 存储模型设计
+
+- 秒杀场次存储的`List`可以当做`hash key`在`SECKILL_CHARE_PREFIX `中获得对应的商品数据
+
+```
+//存储的秒杀场次对应数据
+//K: SESSION_CACHE_PREFIX + startTime + "_" + endTime
+//V: sessionId+"-"+skuId的List
+private final String SESSION_CACHE_PREFIX = "seckill:sessions:";
+
+//存储的秒杀商品数据
+//K: 固定值SECKILL_CHARE_PREFIX
+//V: hash，k为sessionId+"-"+skuId，v为对应的商品信息SeckillSkuRedisTo
+private final String SECKILL_CHARE_PREFIX = "seckill:skus";
+
+//K: SKU_STOCK_SEMAPHORE+商品随机码
+//V: 秒杀的库存件数
+private final String SKU_STOCK_SEMAPHORE = "seckill:stock:";    //+商品随机码
+```
+
+- 存储后的效果
+
+  ![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-10-27_13-01-23.png)
+
+- 用来存储的to
+
+  ```
+  @Data
+  public class SeckillSkuRedisTo {
+      private Long id;
+      /**
+       * 活动id
+       */
+      private Long promotionId;
+      /**
+       * 活动场次id
+       */
+      private Long promotionSessionId;
+      /**
+       * 商品id
+       */
+      private Long skuId;
+      /**
+       * 秒杀价格
+       */
+      private BigDecimal seckillPrice;
+      /**
+       * 秒杀总量
+       */
+      private Integer seckillCount;
+      /**
+       * 每人限购数量
+       */
+      private Integer seckillLimit;
+      /**
+       * 排序
+       */
+      private Integer seckillSort;
+      //以上都为SeckillSkuRelationEntity的属性
+  
+      //skuInfo
+      private SkuInfoVo skuInfoVo;
+  
+      //当前商品秒杀的开始时间
+      private Long startTime;
+  
+      //当前商品秒杀的结束时间
+      private Long endTime;
+  
+      //当前商品秒杀的随机码
+      private String randomCode;
+  }
+  ```
+
+### 3. 商品上架
+
+#### (1) 定时上架
+
+- 开启对定时任务的支持
+
+  ```
+  @EnableAsync //开启对异步的支持，防止定时任务之间相互阻塞
+  @EnableScheduling //开启对定时任务的支持
+  @Configuration
+  public class ScheduledConfig {
+  }
+  ```
+
+- 每天凌晨三点远程调用`coupon`服务上架最近三天的秒杀商品
+
+- 由于在分布式情况下该方法可能同时被调用多次，因此加入分布式锁，同时只有一个服务可以调用该方法
+
+```
+  	//秒杀商品上架功能的锁
+    private final String upload_lock = "seckill:upload:lock";
+
+    /**
+     * 定时任务
+     * 每天三点上架最近三天的秒杀商品
+     */
+    @Async
+    @Scheduled(cron = "0 0 3 * * ?")
+    public void uploadSeckillSkuLatest3Days() {
+        //为避免分布式情况下多服务同时上架的情况，使用分布式锁
+        RLock lock = redissonClient.getLock(upload_lock);
+        try {
+            lock.lock(10, TimeUnit.SECONDS);
+            secKillService.uploadSeckillSkuLatest3Days();
+        }catch (Exception e){
+            e.printStackTrace();
+        }finally {
+            lock.unlock();
+        }
+    }
+
+ 	@Override
+    public void uploadSeckillSkuLatest3Days() {
+        R r = couponFeignService.getSeckillSessionsIn3Days();
+        if (r.getCode() == 0) {
+            List<SeckillSessionWithSkusVo> sessions = r.getData(new TypeReference<List<SeckillSessionWithSkusVo>>() {
+            });
+            //在redis中分别保存秒杀场次信息和场次对应的秒杀商品信息
+            saveSecKillSession(sessions);
+            saveSecKillSku(sessions);
+        }
+    }
+```
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-10-27_18-23-51.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-10-27_18-23-51.png)
+
+#### (2) 获取最近三天的秒杀信息
+
+- 获取最近三天的秒杀场次信息，再通过秒杀场次id查询对应的商品信息
+
+```
+@Override
+public List<SeckillSessionEntity> getSeckillSessionsIn3Days() {
+    QueryWrapper<SeckillSessionEntity> queryWrapper = new QueryWrapper<SeckillSessionEntity>()
+            .between("start_time", getStartTime(), getEndTime());
+    List<SeckillSessionEntity> seckillSessionEntities = this.list(queryWrapper);
+    List<SeckillSessionEntity> list = seckillSessionEntities.stream().map(session -> {
+        List<SeckillSkuRelationEntity> skuRelationEntities = seckillSkuRelationService.list(new QueryWrapper<SeckillSkuRelationEntity>().eq("promotion_session_id", session.getId()));
+        session.setRelations(skuRelationEntities);
+        return session;
+    }).collect(Collectors.toList());
+
+    return list;
+}
+
+//当前天数的 00:00:00
+private String getStartTime() {
+    LocalDate now = LocalDate.now();
+    LocalDateTime time = now.atTime(LocalTime.MIN);
+    String format = time.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    return format;
+}
+
+//当前天数+2 23:59:59..
+private String getEndTime() {
+    LocalDate now = LocalDate.now();
+    LocalDateTime time = now.plusDays(2).atTime(LocalTime.MAX);
+    String format = time.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    return format;
+}
+```
+
+#### (3) 在redis中保存秒杀场次信息
+
+```
+private void saveSecKillSession(List<SeckillSessionWithSkusVo> sessions) {
+    sessions.stream().forEach(session->{
+        String key = SESSION_CACHE_PREFIX + session.getStartTime().getTime() + "_" + session.getEndTime().getTime();
+        //当前活动信息未保存过
+        if (!redisTemplate.hasKey(key)){
+            List<String> values = session.getRelations().stream()
+                    .map(sku -> sku.getPromotionSessionId() +"-"+ sku.getSkuId())
+                    .collect(Collectors.toList());
+            redisTemplate.opsForList().leftPushAll(key,values);
+        }
+    });
+}
+```
+
+#### (4) 在redis中保存秒杀商品信息
+
+```
+private void saveSecKillSku(List<SeckillSessionWithSkusVo> sessions) {
+    BoundHashOperations<String, Object, Object> ops = redisTemplate.boundHashOps(SECKILL_CHARE_PREFIX);
+    sessions.stream().forEach(session->{
+        session.getRelations().stream().forEach(sku->{
+            String key = sku.getPromotionSessionId() +"-"+ sku.getSkuId();
+            if (!ops.hasKey(key)){
+                SeckillSkuRedisTo redisTo = new SeckillSkuRedisTo();
+                //1. 保存SeckillSkuVo信息
+                BeanUtils.copyProperties(sku,redisTo);
+                //2. 保存开始结束时间
+                redisTo.setStartTime(session.getStartTime().getTime());
+                redisTo.setEndTime(session.getEndTime().getTime());
+                //3. 远程查询sku信息并保存
+                R r = productFeignService.info(sku.getSkuId());
+                if (r.getCode() == 0) {
+                    SkuInfoVo skuInfo = r.getData("skuInfo", new TypeReference<SkuInfoVo>() {
+                    });
+                    redisTo.setSkuInfoVo(skuInfo);
+                }
+                //4. 生成商品随机码，防止恶意攻击
+                String token = UUID.randomUUID().toString().replace("-", "");
+                redisTo.setRandomCode(token);
+                //5. 序列化为json并保存
+                String jsonString = JSON.toJSONString(redisTo);
+                ops.put(key,jsonString);
+                //6. 使用库存作为Redisson信号量限制库存
+                RSemaphore semaphore = redissonClient.getSemaphore(SKU_STOCK_SEMAPHORE + token);
+                semaphore.trySetPermits(sku.getSeckillCount());
+            }
+        });
+    });
+}
+```
+
+### 4. 获取当前秒杀商品
+
+```
+@GetMapping(value = "/getCurrentSeckillSkus")
+@ResponseBody
+public R getCurrentSeckillSkus() {
+    //获取到当前可以参加秒杀商品的信息
+    List<SeckillSkuRedisTo> vos = secKillService.getCurrentSeckillSkus();
+
+    return R.ok().setData(vos);
+}
+
+    @Override
+    public List<SeckillSkuRedisTo> getCurrentSeckillSkus() {
+        Set<String> keys = redisTemplate.keys(SESSION_CACHE_PREFIX + "*");
+        long currentTime = System.currentTimeMillis();
+        for (String key : keys) {
+            String replace = key.replace(SESSION_CACHE_PREFIX, "");
+            String[] split = replace.split("_");
+            long startTime = Long.parseLong(split[0]);
+            long endTime = Long.parseLong(split[1]);
+            //当前秒杀活动处于有效期内
+            if (currentTime > startTime && currentTime < endTime) {
+                //取出当前秒杀活动对应商品存储的hash key
+                List<String> range = redisTemplate.opsForList().range(key, -100, 100);
+                BoundHashOperations<String, Object, Object> ops = redisTemplate.boundHashOps(SECKILL_CHARE_PREFIX);
+                //取出存储的商品信息并返回
+                List<SeckillSkuRedisTo> collect = range.stream().map(s -> {
+                    String json = (String) ops.get(s);
+                    SeckillSkuRedisTo redisTo = JSON.parseObject(json, SeckillSkuRedisTo.class);
+                    return redisTo;
+                }).collect(Collectors.toList());
+                return collect;
+            }
+        }
+        return null;
+    }
+```
+
+首页获取并拼装数据
+
+```
+<div class="swiper-slide">
+  <!-- 动态拼装秒杀商品信息 -->
+  <ul id="seckillSkuContent"></ul>
+</div>
+
+<script type="text/javascript">
+  $.get("http://seckill.gulimall.com/getCurrentSeckillSkus", function (res) {
+    if (res.data.length > 0) {
+      res.data.forEach(function (item) {
+        $("<li onclick='toDetail(" + item.skuId + ")'></li>").append($("<img style='width: 130px; height: 130px' src='" + item.skuInfoVo.skuDefaultImg + "' />"))
+                .append($("<p>"+item.skuInfoVo.skuTitle+"</p>"))
+                .append($("<span>" + item.seckillPrice + "</span>"))
+                .append($("<s>" + item.skuInfoVo.price + "</s>"))
+                .appendTo("#seckillSkuContent");
+      })
+    }
+  })
+
+  function toDetail(skuId) {
+    location.href = "http://item.gulimall.com/" + skuId + ".html";
+  }
+
+</script>
+```
+
+首页展示效果
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-10-25_18-52-28.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-10-25_18-52-28.png)
+
+### 5. 获取当前商品的秒杀信息
+
+```
+@ResponseBody
+@GetMapping(value = "/getSeckillSkuInfo/{skuId}")
+public R getSeckillSkuInfo(@PathVariable("skuId") Long skuId) {
+    SeckillSkuRedisTo to = secKillService.getSeckillSkuInfo(skuId);
+    return R.ok().setData(to);
+}
+
+ @Override
+    public SeckillSkuRedisTo getSeckillSkuInfo(Long skuId) {
+        BoundHashOperations<String, String, String> ops = redisTemplate.boundHashOps(SECKILL_CHARE_PREFIX);
+        //获取所有商品的hash key
+        Set<String> keys = ops.keys();
+        for (String key : keys) {
+            //通过正则表达式匹配 数字-当前skuid的商品
+            if (Pattern.matches("\\d-" + skuId,key)) {
+                String v = ops.get(key);
+                SeckillSkuRedisTo redisTo = JSON.parseObject(v, SeckillSkuRedisTo.class);
+                //当前商品参与秒杀活动
+                if (redisTo!=null){
+                    long current = System.currentTimeMillis();
+                    //当前活动在有效期，暴露商品随机码返回
+                    if (redisTo.getStartTime() < current && redisTo.getEndTime() > current) {
+                        return redisTo;
+                    }
+                    //当前商品不再秒杀有效期，则隐藏秒杀所需的商品随机码
+                    redisTo.setRandomCode(null);
+                    return redisTo;
+                }
+            }
+        }
+        return null;
+    }
+```
+
+在查询商品详情页的接口中查询秒杀对应信息
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-10-25_19-00-51.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-10-25_19-00-51.png)
+
+更改商品详情页的显示效果
+
+```
+<li style="color: red" th:if="${item.seckillSkuVo != null}">
+
+    <span th:if="${#dates.createNow().getTime() < item.seckillSkuVo.startTime}">
+        商品将会在[[${#dates.format(new java.util.Date(item.seckillSkuVo.startTime),"yyyy-MM-dd HH:mm:ss")}]]进行秒杀
+    </span>
+
+    <span th:if="${#dates.createNow().getTime() >= item.seckillSkuVo.startTime && #dates.createNow().getTime() <= item.seckillSkuVo.endTime}">
+        秒杀价  [[${#numbers.formatDecimal(item.seckillSkuVo.seckillPrice,1,2)}]]
+    </span>
+
+</li>
+
+<div class="box-btns-two"
+     th:if="${item.seckillSkuVo == null }">
+    <a class="addToCart" href="http://cart.gulimall.com/addToCart" th:attr="skuId=${item.info.skuId}">
+        加入购物车
+    </a>
+</div>
+
+<div class="box-btns-two"
+     th:if="${item.seckillSkuVo != null && (#dates.createNow().getTime() >= item.seckillSkuVo.startTime && #dates.createNow().getTime() <= item.seckillSkuVo.endTime)}">
+    <a class="seckill" href="#"
+       th:attr="skuId=${item.info.skuId},sessionId=${item.seckillSkuVo.promotionSessionId},code=${item.seckillSkuVo.randomCode}">
+        立即抢购
+    </a>
+</div>
+```
+
+页面显示效果
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-10-25_19-05-17.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-10-25_19-05-17.png)
+
+### 6. 秒杀
+
+#### (1) 秒杀接口
+
+- 点击立即抢购时，会发送请求
+
+- 秒杀请求会对请求校验`时效、商品随机码、当前用户是否已经抢购过当前商品、库存和购买量`，通过校验的则秒杀成功，发送消息创建订单
+
+  ```java
+  @GetMapping("/kill")
+  public String kill(@RequestParam("killId") String killId,
+                     @RequestParam("key")String key,
+                     @RequestParam("num")Integer num,
+                     Model model) {
+      String orderSn= null;
+      try {
+          orderSn = secKillService.kill(killId, key, num);
+          model.addAttribute("orderSn", orderSn);
+      } catch (InterruptedException e) {
+          e.printStackTrace();
+      }
+      return "success";
+  }
+  
+   @Override
+      public String kill(String killId, String key, Integer num) throws InterruptedException {
+          BoundHashOperations<String, String, String> ops = redisTemplate.boundHashOps(SECKILL_CHARE_PREFIX);
+          String json = ops.get(killId);
+          String orderSn = null;
+          if (!StringUtils.isEmpty(json)){
+              SeckillSkuRedisTo redisTo = JSON.parseObject(json, SeckillSkuRedisTo.class);
+              //1. 验证时效
+              long current = System.currentTimeMillis();
+              if (current >= redisTo.getStartTime() && current <= redisTo.getEndTime()) {
+                  //2. 验证商品和商品随机码是否对应
+                  String redisKey = redisTo.getPromotionSessionId() + "-" + redisTo.getSkuId();
+                  if (redisKey.equals(killId) && redisTo.getRandomCode().equals(key)) {
+                      //3. 验证当前用户是否购买过
+                      MemberResponseVo memberResponseVo = LoginInterceptor.loginUser.get();
+                      long ttl = redisTo.getEndTime() - System.currentTimeMillis();
+                      //3.1 通过在redis中使用 用户id-skuId 来占位看是否买过
+                      Boolean occupy = redisTemplate.opsForValue().setIfAbsent(memberResponseVo.getId()+"-"+redisTo.getSkuId(), num.toString(), ttl, TimeUnit.MILLISECONDS);
+                      //3.2 占位成功，说明该用户未秒杀过该商品，则继续
+                      if (occupy){
+                          //4. 校验库存和购买量是否符合要求
+                          if (num <= redisTo.getSeckillLimit()) {
+                              //4.1 尝试获取库存信号量
+                              RSemaphore semaphore = redissonClient.getSemaphore(SKU_STOCK_SEMAPHORE + redisTo.getRandomCode());
+                              boolean acquire = semaphore.tryAcquire(num,100,TimeUnit.MILLISECONDS);
+                              //4.2 获取库存成功
+                              if (acquire) {
+                                  //5. 发送消息创建订单
+                                  //5.1 创建订单号
+                                  orderSn = IdWorker.getTimeId();
+                                  //5.2 创建秒杀订单to
+                                  SeckillOrderTo orderTo = new SeckillOrderTo();
+                                  orderTo.setMemberId(memberResponseVo.getId());
+                                  orderTo.setNum(num);
+                                  orderTo.setOrderSn(orderSn);
+                                  orderTo.setPromotionSessionId(redisTo.getPromotionSessionId());
+                                  orderTo.setSeckillPrice(redisTo.getSeckillPrice());
+                                  orderTo.setSkuId(redisTo.getSkuId());
+                                  //5.3 发送创建订单的消息
+                                  rabbitTemplate.convertAndSend("order-event-exchange", "order.seckill.order", orderTo);
+                              }
+                          }
+                      }
+                  }
+              }
+              return orderSn;
+          }
+  ```
+
+  #### (2) 创建订单
+
+  发送消息
+
+  ```java
+  //发送创建订单的消息
+  rabbitTemplate.convertAndSend("order-event-exchange", "order.seckill.order", orderTo);
+  ```
+
+  创建秒杀所需队列
+
+  ```java
+   /**
+       * 商品秒杀队列
+       * @return
+       */
+  @Bean
+  public Queue orderSecKillOrrderQueue() {
+      Queue queue = new Queue("order.seckill.order.queue", true, false, false);
+      return queue;
+  }
+  
+  @Bean
+  public Binding orderSecKillOrrderQueueBinding() {
+      //String destination, DestinationType destinationType, String exchange, String routingKey,
+      // 			Map<String, Object> arguments
+      Binding binding = new Binding(
+              "order.seckill.order.queue",
+              Binding.DestinationType.QUEUE,
+              "order-event-exchange",
+              "order.seckill.order",
+              null);
+  
+      return binding;
+  }
+  ```
+
+  监听队列
+
+  ```
+  @Component
+  @RabbitListener(queues = "order.seckill.order.queue")
+  public class SeckillOrderListener {
+      @Autowired
+      private OrderService orderService;
+  
+      @RabbitHandler
+      public void createOrder(SeckillOrderTo orderTo, Message message, Channel channel) throws IOException {
+          System.out.println("***********接收到秒杀消息");
+          long deliveryTag = message.getMessageProperties().getDeliveryTag();
+          try {
+              orderService.createSeckillOrder(orderTo);
+              channel.basicAck(deliveryTag, false);
+          } catch (Exception e) {
+              channel.basicReject(deliveryTag,true);
+          }
+      }
+  }
+  ```
+
+  创建订单
+
+  ```
+  @Transactional
+  @Override
+  public void createSeckillOrder(SeckillOrderTo orderTo) {
+      MemberResponseVo memberResponseVo = LoginInterceptor.loginUser.get();
+      //1. 创建订单
+      OrderEntity orderEntity = new OrderEntity();
+      orderEntity.setOrderSn(orderTo.getOrderSn());
+      orderEntity.setMemberId(orderTo.getMemberId());
+      orderEntity.setMemberUsername(memberResponseVo.getUsername());
+      orderEntity.setStatus(OrderStatusEnum.CREATE_NEW.getCode());
+      orderEntity.setCreateTime(new Date());
+      orderEntity.setPayAmount(orderTo.getSeckillPrice().multiply(new BigDecimal(orderTo.getNum())));
+      this.save(orderEntity);
+      //2. 创建订单项
+      R r = productFeignService.info(orderTo.getSkuId());
+      if (r.getCode() == 0) {
+          SeckillSkuInfoVo skuInfo = r.getData("skuInfo", new TypeReference<SeckillSkuInfoVo>() {
+          });
+          OrderItemEntity orderItemEntity = new OrderItemEntity();
+          orderItemEntity.setOrderSn(orderTo.getOrderSn());
+          orderItemEntity.setSpuId(skuInfo.getSpuId());
+          orderItemEntity.setCategoryId(skuInfo.getCatalogId());
+          orderItemEntity.setSkuId(skuInfo.getSkuId());
+          orderItemEntity.setSkuName(skuInfo.getSkuName());
+          orderItemEntity.setSkuPic(skuInfo.getSkuDefaultImg());
+          orderItemEntity.setSkuPrice(skuInfo.getPrice());
+          orderItemEntity.setSkuQuantity(orderTo.getNum());
+          orderItemService.save(orderItemEntity);
+      }
+  }
+  ```
+
+页面跳转效果
+
+[![img](https://github.com/NiceSeason/gulimall-learning/raw/master/docs/images/Snipaste_2020-10-25_20-32-56.png)](https://github.com/NiceSeason/gulimall-learning/blob/master/docs/images/Snipaste_2020-10-25_20-32-56.png)
+
+![](./docs/assets/282.png)
+
+第一种秒杀方案虽然流量会分散，但流量太大的话会牵扯到其他服务，第二个不会（独立、解耦的秒杀业务）
+
+第二种，如果订单服务炸了，你返回用户下单成功， 订单没有详情信息，用户就没办法支付
+
+mq作用：流量晓峰、数据一致性
